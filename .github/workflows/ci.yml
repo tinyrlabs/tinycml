@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make clean && make build CC=${{ matrix.compiler }}
+      - name: Run tests
+        run: make test
+      - name: Build shared library
+        run: make shared CC=${{ matrix.compiler }}
+
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with ASAN
+        run: make clean && make build CC=gcc CFLAGS="-std=c11 -Wall -Wextra -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+      - name: Run tests with ASAN
+        run: make test
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Doxygen
+        run: sudo apt-get install -y doxygen
+      - name: Generate docs
+        run: make docs || echo "Doxyfile not found, skipping"
