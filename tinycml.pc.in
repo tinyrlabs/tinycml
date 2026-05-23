@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/tinycml
+
+Name: tinycml
+Description: Tiny C Machine Learning Library
+Version: @version@
+Libs: -L${libdir} -ltinycml -lm
+Cflags: -I${includedir}
