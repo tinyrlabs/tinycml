@@ -1,0 +1,37 @@
+# Doxyfile - tinycml documentation configuration
+
+# Project settings
+PROJECT_NAME           = tinycml
+PROJECT_NUMBER         = 0.1.0
+PROJECT_BRIEF          = "Tiny C Machine Learning Library"
+OUTPUT_DIRECTORY       = build/docs
+
+# Input
+INPUT                  = include/ src/
+FILE_PATTERNS          = *.c *.h
+RECURSIVE              = YES
+
+# Output
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+# Extraction
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+
+# Behavior
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+
+# Source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+
+# Miscellaneous
+TAB_SIZE               = 4
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
