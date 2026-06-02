@@ -1,10 +1,11 @@
 # tinycml-embed
 
 tinycml'nin embedded sistemler için portu. ARM Cortex-M, ESP32 ve RISC-V'de ML.
+*Embedded port of tinycml. ML on ARM Cortex-M, ESP32, and RISC-V.*
 
-## Kullanım
+## Kullanım / Usage
 
-KNN ile STM32F4'te ML örneği:
+KNN ile STM32F4'te ML örneği / *KNN comfort predictor on STM32F4:*
 
 ```c
 #define CML_ENABLE_KNN
@@ -17,58 +18,65 @@ KNN ile STM32F4'te ML örneği:
 #include "tinycml.h"
 
 int main(void) {
-    cml_pool_init();  // Bellek havuzunu başlat
+    cml_pool_init();  // init memory pool
 
-    // KNN train/predict...
-    cml_pool_reset();  // İnference döngüleri arasında belleği sıfırla
+    // train, predict...
+    cml_pool_reset(); // reset between inference cycles
 }
 ```
 
-## Compile-Time Seçenekler
+## Compile-Time Seçenekler / *Options*
 
-| Flag | Ne işe yarar |
-|------|-------------|
-| `CML_USE_POOL` | Statik bellek havuzu kullan (malloc yok) |
-| `CML_POOL_SIZE=N` | Havuz boyutu (default: 4096) |
-| `CML_ENABLE_KNN` | Sadece KNN dahil et |
-| `CML_ENABLE_NAIVE_BAYES` | Sadece Naive Bayes dahil et |
-| `CML_ENABLE_ALL` | Tüm algoritmalar (default) |
+| Flag | Açıklama / *Description* |
+|------|--------------------------|
+| `CML_USE_POOL` | Static pool allocator (no malloc) |
+| `CML_POOL_SIZE=N` | Pool size (default: 4096) |
+| `CML_NO_MATH` | Use math lookup tables (no -lm) |
+| `CML_ENABLE_KNN` | Include only KNN |
+| `CML_ENABLE_NAIVE_BAYES` | Include only Naive Bayes |
+| `CML_ENABLE_ALL` | All algorithms (default) |
 
-## Build
+## Build / Derleme
 
 ```bash
 # ARM Cortex-M
-make -f embed/Makefile.embed arm CML_ALGOS="KNN NAIVE_BAYES"
+make -f embed/Makefile.embed arm CML_ALGOS="KNN"
 
-# ESP32
-make -f embed/Makefile.embed esp32 CML_ALGOS="KNN"
+# ESP32 (ESP-IDF)
+make -f embed/Makefile.embed esp32 CML_ALGOS="NAIVE_BAYES"
 
 # RISC-V
 make -f embed/Makefile.embed riscv CML_ALGOS="LINEAR_REGRESSION"
 
-# Native test
+# Without math.h (lookup tables)
+make arm CML_ALGOS="KNN" CML_NO_MATH=1
+
+# Native test on host
 make -f embed/Makefile.embed test_native
 ```
 
-## Bellek Kullanımı
+## Bellek Kullanımı / *Memory Usage*
 
-| Algoritma | RAM (peak) | Flash (tahmini) |
-|-----------|-----------|----------------|
-| KNN (12 örnek, 2 feature) | ~600 bytes | ~4 KB |
-| GaussianNB (16 örnek, 3 feature) | ~800 bytes | ~5 KB |
-| Linear Regression (8 örnek) | ~400 bytes | ~3 KB |
-| Linear Regression + KNN + NB | ~1.5 KB | ~12 KB |
+| Algorithm / Algoritma | RAM (peak) | Flash (est.) |
+|-----------------------|-----------|--------------|
+| KNN (12 samples, 2 features) | ~600 B | ~4 KB |
+| GaussianNB (16 samples, 3 features) | ~800 B | ~5 KB |
+| Linear Regression (8 samples) | ~400 B | ~3 KB |
+| KNN + NB + LR | ~1.5 KB | ~12 KB |
+| KNN only | ~600 B | ~4 KB |
 
-## Dizin Yapısı
+## Dizin Yapısı / *Directory Structure*
 
 ```
 embed/
-  cml_pool.h       # Statik bellek havuzu
-  cml_config.h     # Compile-time yapılandırma
-  Makefile.embed   # Cross-compilation
+  cml_pool.h            # Pool allocator / Havuz ayırıcı
+  cml_math_lut.h        # Math LUT (CML_NO_MATH)
+  cml_config.h          # Compile-time config / Yapılandırma
+  Makefile.embed        # Cross-compilation / Çapraz derleme
 examples/embedded/
-  stm32/main.c     # STM32F4 + KNN comfort predictor
-  esp32/main.c     # ESP32 + GaussianNB anomaly detector
-  riscv/main.c     # RISC-V + Linear Regression temp predictor
-  test_embed_native.c  # Native test suite (55 test)
+  stm32/main.c          # STM32F4 + KNN comfort predictor
+  esp32/main.c          # ESP32 + GaussianNB anomaly detector
+  riscv/main.c          # RISC-V + Linear Regression temp predictor
+  platformio/           # ESP32 + Arduino via PlatformIO
+  test_embed_native.c   # Native test suite (55 test)
 ```
