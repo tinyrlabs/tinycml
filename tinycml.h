@@ -17,6 +17,40 @@
 #define TINYCML_H
 
 /* ============================================================
+ * Feature Flag Configuration
+ * ============================================================
+ * Define CML_ENABLE_XXX before CML_IMPLEMENTATION to select
+ * which algorithms to include. Core modules are always included.
+ *
+ * If no CML_ENABLE_* is defined, CML_ENABLE_ALL is assumed.
+ * ============================================================ */
+
+#if !defined(CML_ENABLE_KNN) && \
+    !defined(CML_ENABLE_NAIVE_BAYES) && \
+    !defined(CML_ENABLE_LINEAR_REGRESSION) && \
+    !defined(CML_ENABLE_LOGISTIC_REGRESSION) && \
+    !defined(CML_ENABLE_RIDGE) && \
+    !defined(CML_ENABLE_LASSO) && \
+    !defined(CML_ENABLE_SVM) && \
+    !defined(CML_ENABLE_DECISION_TREE) && \
+    !defined(CML_ENABLE_RANDOM_FOREST) && \
+    !defined(CML_ENABLE_GRADIENT_BOOSTING) && \
+    !defined(CML_ENABLE_KMEANS) && \
+    !defined(CML_ENABLE_DBSCAN) && \
+    !defined(CML_ENABLE_AGGLOMERATIVE) && \
+    !defined(CML_ENABLE_ISOLATION_FOREST) && \
+    !defined(CML_ENABLE_PCA) && \
+    !defined(CML_ENABLE_NEURAL_NETWORK) && \
+    !defined(CML_ENABLE_SGD) && \
+    !defined(CML_ENABLE_PREPROCESSING) && \
+    !defined(CML_ENABLE_FEATURE_SELECTION) && \
+    !defined(CML_ENABLE_MODEL_SELECTION) && \
+    !defined(CML_ENABLE_PIPELINE) && \
+    !defined(CML_ENABLE_SERIALIZATION)
+#define CML_ENABLE_ALL
+#endif
+
+/* ============================================================
  * Embedded Configuration
  * ============================================================
  * Define these BEFORE including tinycml.h to use static pool:
@@ -5894,6 +5928,7 @@ int cml_ser_read_int(FILE *f, int *val) {
 
 
 /* --- kmeans.c --- */
+#if defined(CML_ENABLE_KMEANS) || defined(CML_ENABLE_ALL)
 /**
  * @file kmeans.c
  * @brief Implementation of k-Means clustering
@@ -6061,9 +6096,11 @@ void kmeans_free(KMeansModel *model) {
         cml_free(model);
     }
 }
+#endif /* CML_ENABLE_KMEANS */
 
 
 /* --- dbscan.c --- */
+#if defined(CML_ENABLE_DBSCAN) || defined(CML_ENABLE_ALL)
 /**
  * @file dbscan.c
  * @brief DBSCAN density-based clustering implementation
@@ -6213,6 +6250,7 @@ DBSCAN* dbscan_create(void) {
 void dbscan_free(DBSCAN *model) {
     if (model) cml_free(model);
 }
+#endif /* CML_ENABLE_DBSCAN */
 
 
 /* --- preprocessing.c --- */
@@ -6496,6 +6534,7 @@ Matrix* add_bias_column(const Matrix *X) {
 
 
 /* --- knn.c --- */
+#if defined(CML_ENABLE_KNN) || defined(CML_ENABLE_ALL)
 /**
  * @file knn.c
  * @brief Implementation of k-Nearest Neighbors classifier
@@ -6710,9 +6749,11 @@ void knn_free(KNNModel *model) {
         cml_free(model);
     }
 }
+#endif /* CML_ENABLE_KNN */
 
 
 /* --- linear_regression.c --- */
+#if defined(CML_ENABLE_LINEAR_REGRESSION) || defined(CML_ENABLE_ALL)
 /**
  * @file linear_regression.c
  * @brief Implementation of linear regression with Estimator API
@@ -7344,9 +7385,11 @@ Matrix* linreg_predict(const Matrix *X, const Matrix *weights) {
     }
     return matrix_matmul(X, weights);
 }
+#endif /* CML_ENABLE_LINEAR_REGRESSION */
 
 
 /* --- logistic_regression.c --- */
+#if defined(CML_ENABLE_LOGISTIC_REGRESSION) || defined(CML_ENABLE_ALL)
 /**
  * @file logistic_regression.c
  * @brief Implementation of logistic regression
@@ -8111,9 +8154,11 @@ Estimator* softmax_model_load(const char *path) {
     model->base.is_fitted = 1;
     return (Estimator*)model;
 }
+#endif /* CML_ENABLE_LOGISTIC_REGRESSION */
 
 
 /* --- ridge.c --- */
+#if defined(CML_ENABLE_RIDGE) || defined(CML_ENABLE_ALL)
 /**
  * @file ridge.c
  * @brief Ridge (L2-regularized) regression – closed-form solution
@@ -8346,9 +8391,11 @@ void ridge_free(Estimator *self) {
     training_history_free(m->base.history);
     cml_free(m);
 }
+#endif /* CML_ENABLE_RIDGE */
 
 
 /* --- lasso.c --- */
+#if defined(CML_ENABLE_LASSO) || defined(CML_ENABLE_ALL)
 /**
  * @file lasso.c
  * @brief Lasso (L1-regularized) regression – coordinate descent
@@ -8568,9 +8615,11 @@ void lasso_free(Estimator *self) {
     training_history_free(m->base.history);
     cml_free(m);
 }
+#endif /* CML_ENABLE_LASSO */
 
 
 /* --- svm.c --- */
+#if defined(CML_ENABLE_SVM) || defined(CML_ENABLE_ALL)
 /**
  * @file svm.c
  * @brief Linear SVM classifier implementation using sub-gradient descent
@@ -9417,9 +9466,11 @@ static Estimator* svm_clf_load(const char *path) {
     svm->base.is_fitted = 1;
     return (Estimator*)svm;
 }
+#endif /* CML_ENABLE_SVM */
 
 
 /* --- naive_bayes.c --- */
+#if defined(CML_ENABLE_NAIVE_BAYES) || defined(CML_ENABLE_ALL)
 /**
  * @file naive_bayes.c
  * @brief Gaussian Naive Bayes classifier implementation
@@ -10093,9 +10144,11 @@ Estimator* multinomial_nb_load(const char *path) {
     nb->base.is_fitted = 1;
     return (Estimator*)nb;
 }
+#endif /* CML_ENABLE_NAIVE_BAYES */
 
 
 /* --- decision_tree.c --- */
+#if defined(CML_ENABLE_DECISION_TREE) || defined(CML_ENABLE_ALL)
 /**
  * decision_tree.c - Decision Tree implementation (CART algorithm)
  */
@@ -10895,9 +10948,11 @@ void decision_tree_regressor_free(Estimator *self) {
         cml_free(tree);
     }
 }
+#endif /* CML_ENABLE_DECISION_TREE */
 
 
 /* --- decomposition.c --- */
+#if defined(CML_ENABLE_PCA) || defined(CML_ENABLE_ALL)
 /**
  * decomposition.c - PCA implementation using power iteration
  *
@@ -11275,9 +11330,11 @@ void pca_print_summary(const Estimator *self) {
     }
     printf("===================\n\n");
 }
+#endif /* CML_ENABLE_PCA */
 
 
 /* --- neural_network.c --- */
+#if defined(CML_ENABLE_NEURAL_NETWORK) || defined(CML_ENABLE_ALL)
 /**
  * neural_network.c - Neural Network implementation
  *
@@ -12067,9 +12124,11 @@ MLPRegressor* mlp_regressor_create(const int *hidden_layer_sizes, int n_hidden) 
     nn->base.task = TASK_REGRESSION;
     return nn;
 }
+#endif /* CML_ENABLE_NEURAL_NETWORK */
 
 
 /* --- sgd.c --- */
+#if defined(CML_ENABLE_SGD) || defined(CML_ENABLE_ALL)
 /**
  * sgd.c - Stochastic Gradient Descent classifier and regressor
  *
@@ -12455,6 +12514,7 @@ Estimator* sgd_load(const char *path) {
     fclose(f);
     return (Estimator*)m;
 }
+#endif /* CML_ENABLE_SGD */
 
 
 /* --- validation.c --- */
@@ -13036,6 +13096,7 @@ CrossValResults* leave_one_out_cv(
 
 
 /* --- feature_selection.c --- */
+#if defined(CML_ENABLE_FEATURE_SELECTION) || defined(CML_ENABLE_ALL)
 /**
  * feature_selection.c - Feature Selection Utilities
  */
@@ -13763,9 +13824,11 @@ int get_feature_importances(const Estimator *estimator, double *importances) {
             return -1;
     }
 }
+#endif /* CML_ENABLE_FEATURE_SELECTION */
 
 
 /* --- ensemble.c --- */
+#if defined(CML_ENABLE_RANDOM_FOREST) || defined(CML_ENABLE_ALL)
 /**
  * ensemble.c - Random Forest implementation
  */
@@ -14249,9 +14312,11 @@ void random_forest_regressor_free(Estimator *self) {
     }
     cml_free(rf);
 }
+#endif /* CML_ENABLE_RANDOM_FOREST */
 
 
 /* --- gradient_boosting.c --- */
+#if defined(CML_ENABLE_GRADIENT_BOOSTING) || defined(CML_ENABLE_ALL)
 /**
  * gradient_boosting.c - Gradient Boosted Decision Trees (GBDT)
  *
@@ -14747,9 +14812,11 @@ Estimator* gradient_boosting_load(const char *path) {
     fclose(f);
     return (Estimator*)gb;
 }
+#endif /* CML_ENABLE_GRADIENT_BOOSTING */
 
 
 /* --- isolation_forest.c --- */
+#if defined(CML_ENABLE_ISOLATION_FOREST) || defined(CML_ENABLE_ALL)
 /**
  * isolation_forest.c - Isolation Forest for anomaly detection
  *
@@ -15107,9 +15174,11 @@ Estimator* isolation_forest_clone(const Estimator *self) {
     /* Simplified: return NULL — clone not critical for IF */
     return NULL;
 }
+#endif /* CML_ENABLE_ISOLATION_FOREST */
 
 
 /* --- agglomerative.c --- */
+#if defined(CML_ENABLE_AGGLOMERATIVE) || defined(CML_ENABLE_ALL)
 /**
  * agglomerative.c - Agglomerative (hierarchical) clustering
  *
@@ -15345,9 +15414,11 @@ Estimator* agglomerative_clone(const Estimator *self) {
 
     return (Estimator*)dst;
 }
+#endif /* CML_ENABLE_AGGLOMERATIVE */
 
 
 /* --- model_selection.c --- */
+#if defined(CML_ENABLE_MODEL_SELECTION) || defined(CML_ENABLE_ALL)
 /**
  * model_selection.c - GridSearchCV and learning curves implementation
  */
@@ -15904,9 +15975,11 @@ void learning_curve_free(LearningCurveResult *lc) {
     cml_free(lc->test_scores_std);
     cml_free(lc);
 }
+#endif /* CML_ENABLE_MODEL_SELECTION */
 
 
 /* --- pipeline.c --- */
+#if defined(CML_ENABLE_PIPELINE) || defined(CML_ENABLE_ALL)
 /**
  * pipeline.c - Pipeline implementation
  */
@@ -16483,6 +16556,7 @@ Estimator* pipeline_get_estimator(Pipeline *pipe) {
     }
     return NULL;
 }
+#endif /* CML_ENABLE_PIPELINE */
 
 
 /* --- cml_simd.c --- */
