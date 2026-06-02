@@ -1,0 +1,7 @@
+{
+  "name": "tinycml",
+  "version": "0.1.0",
+  "description": "Tiny C Machine Learning Library — a lightweight C11 ML library with no dependencies",
+  "homepage": "https://github.com/username/tinycml",
+  "license": "MIT"
+}

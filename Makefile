@@ -48,7 +48,7 @@ EXAMPLE_BINS = $(patsubst %,$(EXAMPLES_DIR)/%,$(EXAMPLES))
 TESTS = test_matrix test_linreg test_logreg test_logreg_model test_knn test_kmeans test_metrics test_decision_tree test_naive_bayes test_nn test_pca test_preprocessing test_svm test_onehot test_metrics_multiclass test_svm_proba test_knn_proba test_feature_selection test_pipeline test_model_selection test_ridge test_lasso test_softmax test_multinomial_nb test_svm_rbf test_dbscan test_cml_error test_csv_robust test_serialization test_silhouette test_gradient_boosting test_sgd test_isolation_forest test_agglomerative
 TEST_BINS = $(patsubst %,$(TEST_DIR)/%,$(TESTS))
 
-.PHONY: all build library static shared examples tests test clean install uninstall docs help single_header cli
+.PHONY: all build library static shared examples tests test clean install uninstall docs help single_header cli benchmark
 
 # Single-header amalgamation
 single_header:
@@ -156,6 +156,11 @@ docs:
 clean:
 	rm -rf $(BUILD_DIR)
 
+# Benchmark: tinycml vs sklearn
+benchmark: cli
+	@echo "Running benchmarks..."
+	python3 benchmarks/run_benchmarks.py
+
 # Help
 help:
 	@echo "Available targets:"
@@ -171,6 +176,7 @@ help:
 	@echo "  install  - Install headers, libraries, and pkg-config file"
 	@echo "  uninstall- Remove installed files"
 	@echo "  single_header - Generate single-header tinycml.h amalgamation"
+	@echo "  benchmark - Run tinycml vs sklearn benchmark suite"
 	@echo "  clean    - Remove build directory"
 	@echo ""
 	@echo "Variables:"
