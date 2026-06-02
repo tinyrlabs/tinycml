@@ -149,6 +149,34 @@ process_source() {
     echo "#ifndef TINYCML_H"
     echo "#define TINYCML_H"
     echo ""
+    echo "/* ============================================================"
+    echo " * Embedded Configuration"
+    echo " * ============================================================"
+    echo " * Define these BEFORE including tinycml.h to use static pool:"
+    echo " *"
+    echo " *   #define CML_USE_POOL"
+    echo " *   #define CML_POOL_SIZE 4096"
+    echo " *   #include \"embed/cml_pool.h\""
+    echo " *   #include \"tinycml.h\""
+    echo " *"
+    echo " * This redirects all internal allocations through a linear"
+    echo " * bump allocator -- no malloc/free on your MCU heap."
+    echo " * Call cml_pool_reset() between inference cycles."
+    echo " * ============================================================ */"
+    echo ""
+    echo "#ifdef CML_USE_POOL"
+    echo "    #define cml_malloc(s)  cml_pool_alloc(s)"
+    echo "    #define cml_free(p)    cml_pool_free(p)"
+    echo "    #define cml_calloc(n,s) cml_pool_calloc(n,s)"
+    echo "    #define cml_realloc(p,s) cml_pool_realloc(p,s)"
+    echo "#else"
+    echo "    #include <stdlib.h>"
+    echo "    #define cml_malloc(s)  malloc(s)"
+    echo "    #define cml_free(p)    free(p)"
+    echo "    #define cml_calloc(n,s) calloc(n,s)"
+    echo "    #define cml_realloc(p,s) realloc(p,s)"
+    echo "#endif"
+    echo ""
     echo "/* === HEADERS === */"
     echo ""
 
@@ -175,6 +203,9 @@ process_source() {
     echo "#endif /* TINYCML_H */"
 
 } > "$OUTPUT"
+
+# ── Post-processing: redirect malloc/free to cml_malloc/cml_free ──────
+python3 "$SCRIPT_DIR/amalgamate_post.py" "$OUTPUT"
 
 # ── Report ────────────────────────────────────────────────────────────
 LINES=$(wc -l < "$OUTPUT")

@@ -16,6 +16,34 @@
 #ifndef TINYCML_H
 #define TINYCML_H
 
+/* ============================================================
+ * Embedded Configuration
+ * ============================================================
+ * Define these BEFORE including tinycml.h to use static pool:
+ *
+ *   #define CML_USE_POOL
+ *   #define CML_POOL_SIZE 4096
+ *   #include "embed/cml_pool.h"
+ *   #include "tinycml.h"
+ *
+ * This redirects all internal allocations through a linear
+ * bump allocator -- no malloc/free on your MCU heap.
+ * Call cml_pool_reset() between inference cycles.
+ * ============================================================ */
+
+#ifdef CML_USE_POOL
+    #define cml_malloc(s)  cml_pool_alloc(s)
+    #define cml_free(p)    cml_pool_free(p)
+    #define cml_calloc(n,s) cml_pool_calloc(n,s)
+    #define cml_realloc(p,s) cml_pool_realloc(p,s)
+#else
+    #include <stdlib.h>
+    #define cml_malloc(s)  malloc(s)
+    #define cml_free(p)    free(p)
+    #define cml_calloc(n,s) calloc(n,s)
+    #define cml_realloc(p,s) realloc(p,s)
+#endif
+
 /* === HEADERS === */
 
 /* --- matrix.h --- */
@@ -156,6 +184,7 @@ void matrix_fill(Matrix *m, double val);
 Matrix* matrix_identity(size_t n);
 
 
+
 /* --- utils.h --- */
 /**
  * @file utils.h
@@ -240,6 +269,7 @@ void shuffle_indices(size_t *indices, size_t n);
 char* cml_strdup(const char *s);
 
 
+
 /* --- cml_error.h --- */
 /**
  * @file cml_error.h
@@ -314,6 +344,7 @@ const char* cml_status_string(CMLStatus code);
 } while(0)
 
 
+
 /* --- vector.h --- */
 /**
  * @file vector.h
@@ -323,6 +354,7 @@ const char* cml_status_string(CMLStatus code);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief Compute dot product of two vectors
@@ -364,6 +396,7 @@ Matrix* vector_add(const Matrix *a, const Matrix *b);
 Matrix* vector_sub(const Matrix *a, const Matrix *b);
 
 
+
 /* --- csv.h --- */
 /**
  * @file csv.h
@@ -371,6 +404,7 @@ Matrix* vector_sub(const Matrix *a, const Matrix *b);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief Load a CSV file into a Matrix
@@ -429,6 +463,7 @@ int csv_get_header_count(void);
 char csv_detect_delimiter(const char *path);
 
 
+
 /* --- metrics.h --- */
 /**
  * @file metrics.h
@@ -436,6 +471,7 @@ char csv_detect_delimiter(const char *path);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief Confusion matrix structure
@@ -590,6 +626,7 @@ double f1_score_weighted(const Matrix *y_true, const Matrix *y_pred, int n_class
 double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters);
 
 
+
 /* --- kmeans.h --- */
 /**
  * @file kmeans.h
@@ -597,6 +634,7 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief k-Means model structure
@@ -632,6 +670,7 @@ Matrix* kmeans_predict(const KMeansModel *model, const Matrix *X);
 void kmeans_free(KMeansModel *model);
 
 
+
 /* --- dbscan.h --- */
 /**
  * @file dbscan.h
@@ -639,6 +678,7 @@ void kmeans_free(KMeansModel *model);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief DBSCAN clustering model
@@ -677,6 +717,7 @@ DBSCAN* dbscan_create(void);
 void dbscan_free(DBSCAN *model);
 
 
+
 /* --- preprocessing.h --- */
 /**
  * @file preprocessing.h
@@ -684,6 +725,7 @@ void dbscan_free(DBSCAN *model);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief Result of train/test split
@@ -788,6 +830,7 @@ void minmax_scaler_free(MinMaxScaler *scaler);
 Matrix* add_bias_column(const Matrix *X);
 
 
+
 /* --- knn.h --- */
 /**
  * @file knn.h
@@ -795,6 +838,7 @@ Matrix* add_bias_column(const Matrix *X);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief k-NN model structure
@@ -838,6 +882,7 @@ Matrix* knn_predict_proba(const KNNModel *model, const Matrix *X, int n_classes)
 void knn_free(KNNModel *model);
 
 
+
 /* --- onehot_encoder.h --- */
 /**
  * @file onehot_encoder.h
@@ -845,6 +890,7 @@ void knn_free(KNNModel *model);
  */
 
 
+#include "matrix.h"
 
 /**
  * @brief One-hot encoder for integer-valued categorical features
@@ -890,6 +936,7 @@ Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X);
 void onehot_encoder_free(OneHotEncoder *encoder);
 
 
+
 /* --- estimator.h --- */
 /**
  * estimator.h - Unified Estimator API for tinycml
@@ -903,6 +950,7 @@ void onehot_encoder_free(OneHotEncoder *encoder);
  */
 
 
+#include "matrix.h"
 
 /**
  * Model type enumeration
@@ -918,7 +966,8 @@ typedef enum {
     MODEL_NEURAL_NETWORK,
     MODEL_SVM,
     MODEL_PCA,
-    MODEL_FEATURE_SELECTOR
+    MODEL_FEATURE_SELECTOR,
+    MODEL_GRADIENT_BOOSTING
 } ModelType;
 
 /**
@@ -1036,6 +1085,7 @@ void verbose_print_final(VerboseLevel level, const char *model_name,
 void verbose_print_progress_bar(int current, int total, int bar_width);
 
 
+
 /* --- cml_serialization.h --- */
 /**
  * cml_serialization.h - Shared serialization helpers for tinycml models
@@ -1048,6 +1098,7 @@ void verbose_print_progress_bar(int current, int total, int bar_width);
 
 
 #include <stdio.h>
+#include "matrix.h"
 
 /* Magic bytes: "CML\0" */
 #define CML_SER_MAGIC_SIZE 4
@@ -1102,6 +1153,7 @@ int cml_ser_write_int(FILE *f, int val);
 int cml_ser_read_int(FILE *f, int *val);
 
 
+
 /* --- linear_regression.h --- */
 /**
  * @file linear_regression.h
@@ -1109,6 +1161,8 @@ int cml_ser_read_int(FILE *f, int *val);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * Solver method for linear regression
@@ -1237,6 +1291,7 @@ Matrix* linreg_fit_gd(const Matrix *X, const Matrix *y, double lr, int epochs);
 Matrix* linreg_predict(const Matrix *X, const Matrix *weights);
 
 
+
 /* --- logistic_regression.h --- */
 /**
  * @file logistic_regression.h
@@ -1244,6 +1299,8 @@ Matrix* linreg_predict(const Matrix *X, const Matrix *weights);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * @brief Sigmoid function
@@ -1376,6 +1433,7 @@ int softmax_model_save(const Estimator *self, const char *path);
 Estimator* softmax_model_load(const char *path);
 
 
+
 /* --- ridge.h --- */
 /**
  * @file ridge.h
@@ -1383,6 +1441,8 @@ Estimator* softmax_model_load(const char *path);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 typedef struct {
     Estimator base;
@@ -1425,6 +1485,7 @@ Estimator* ridge_clone(const Estimator *self);
 void ridge_free(Estimator *self);
 
 
+
 /* --- lasso.h --- */
 /**
  * @file lasso.h
@@ -1432,6 +1493,8 @@ void ridge_free(Estimator *self);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 typedef struct {
     Estimator base;
@@ -1474,6 +1537,7 @@ Estimator* lasso_clone(const Estimator *self);
 void lasso_free(Estimator *self);
 
 
+
 /* --- svm.h --- */
 /**
  * @file svm.h
@@ -1481,6 +1545,8 @@ void lasso_free(Estimator *self);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * @brief Linear SVM classifier using sub-gradient descent with hinge loss
@@ -1602,6 +1668,7 @@ int svm_classifier_save(const Estimator *self, const char *path);
 Estimator* svm_classifier_load(const char *path);
 
 
+
 /* --- naive_bayes.h --- */
 /**
  * @file naive_bayes.h
@@ -1609,6 +1676,8 @@ Estimator* svm_classifier_load(const char *path);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * @brief Gaussian Naive Bayes classifier
@@ -1704,6 +1773,7 @@ int multinomial_nb_save(const Estimator *self, const char *path);
 Estimator* multinomial_nb_load(const char *path);
 
 
+
 /* --- decision_tree.h --- */
 /**
  * decision_tree.h - Decision Tree for classification and regression
@@ -1715,6 +1785,8 @@ Estimator* multinomial_nb_load(const char *path);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * Criterion for splitting
@@ -1915,6 +1987,7 @@ void tree_node_free(TreeNode *node);
 void decision_tree_export_text(const TreeNode *root, int depth);
 
 
+
 /* --- decomposition.h --- */
 /**
  * decomposition.h - Dimensionality reduction algorithms
@@ -1925,6 +1998,8 @@ void decision_tree_export_text(const TreeNode *root, int depth);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * PCA (Principal Component Analysis)
@@ -2031,6 +2106,7 @@ Matrix* power_iteration(const Matrix *A, int max_iter, double tol);
 int eigen_decomposition(const Matrix *A, Matrix **eigenvectors, double *eigenvalues, int n_components);
 
 
+
 /* --- neural_network.h --- */
 /**
  * neural_network.h - Feedforward Neural Network (Multi-Layer Perceptron)
@@ -2044,6 +2120,8 @@ int eigen_decomposition(const Matrix *A, Matrix **eigenvectors, double *eigenval
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * Activation functions
@@ -2280,6 +2358,7 @@ Layer* layer_create(int n_input, int n_output, ActivationType activation);
 void layer_free(Layer *layer);
 
 
+
 /* --- validation.h --- */
 /**
  * validation.h - Cross-validation and model selection utilities
@@ -2292,6 +2371,8 @@ void layer_free(Layer *layer);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * K-Fold split indices
@@ -2489,6 +2570,7 @@ CrossValResults* leave_one_out_cv(
 Matrix* matrix_get_rows(const Matrix *m, const size_t *indices, size_t n_indices);
 
 
+
 /* --- feature_selection.h --- */
 /**
  * feature_selection.h - Feature Selection Utilities
@@ -2501,6 +2583,8 @@ Matrix* matrix_get_rows(const Matrix *m, const size_t *indices, size_t n_indices
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
 
 /**
  * Feature scoring functions
@@ -2706,6 +2790,7 @@ int mutual_info_regression(const Matrix *X, const Matrix *y, double *mi_values, 
 int get_feature_importances(const Estimator *estimator, double *importances);
 
 
+
 /* --- ensemble.h --- */
 /**
  * ensemble.h - Ensemble methods
@@ -2716,6 +2801,9 @@ int get_feature_importances(const Estimator *estimator, double *importances);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
+#include "decision_tree.h"
 
 /**
  * Random Forest Classifier
@@ -2874,6 +2962,7 @@ Estimator* random_forest_regressor_clone(const Estimator *self);
 void random_forest_regressor_free(Estimator *self);
 
 
+
 /* --- model_selection.h --- */
 /**
  * model_selection.h - Model selection and hyperparameter tuning
@@ -2884,6 +2973,9 @@ void random_forest_regressor_free(Estimator *self);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
+#include "validation.h"
 
 /**
  * Parameter types
@@ -3097,6 +3189,7 @@ int learning_curve_save_csv(const LearningCurveResult *lc, const char *filename)
 void learning_curve_free(LearningCurveResult *lc);
 
 
+
 /* --- pipeline.h --- */
 /**
  * pipeline.h - Pipeline for chaining transformers and estimators
@@ -3108,6 +3201,9 @@ void learning_curve_free(LearningCurveResult *lc);
  */
 
 
+#include "matrix.h"
+#include "estimator.h"
+#include "preprocessing.h"
 
 /**
  * Pipeline step types
@@ -3300,6 +3396,13 @@ Estimator* pipeline_get_estimator(Pipeline *pipe);
 
 #ifdef CML_IMPLEMENTATION
 
+/* === Allocation redirect (CML_USE_POOL support) === */
+#ifdef CML_USE_POOL
+/* cml_malloc etc. already defined via embed/cml_pool.h */
+#else
+/* Without pool: cml_malloc -> malloc, already defined above */
+#endif
+
 /* === IMPLEMENTATION === */
 
 /* --- matrix.c --- */
@@ -3307,8 +3410,6 @@ Estimator* pipeline_get_estimator(Pipeline *pipe);
  * @file matrix.c
  * @brief Implementation of matrix operations
  */
-
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -3324,17 +3425,17 @@ Matrix* matrix_alloc(size_t rows, size_t cols) {
         return NULL;
     }
 
-    Matrix *m = malloc(sizeof(Matrix));
+    Matrix *m = cml_malloc(sizeof(Matrix));
     if (!m) {
         return NULL;
     }
 
     m->rows = rows;
     m->cols = cols;
-    m->data = calloc(rows * cols, sizeof(double));
+    m->data = cml_calloc(rows * cols, sizeof(double));
 
     if (!m->data) {
-        free(m);
+        cml_free(m);
         return NULL;
     }
 
@@ -3343,8 +3444,8 @@ Matrix* matrix_alloc(size_t rows, size_t cols) {
 
 void matrix_free(Matrix *m) {
     if (m) {
-        free(m->data);
-        free(m);
+        cml_free(m->data);
+        cml_free(m);
     }
 }
 
@@ -3495,7 +3596,7 @@ static Matrix* matrix_matmul_omp(const Matrix *a, const Matrix *b) {
     }
 
     /* Allocate transposed B for cache-friendly column access */
-    double *b_colmajor = malloc(K * N * sizeof(double));
+    double *b_colmajor = cml_malloc(K * N * sizeof(double));
     if (!b_colmajor) {
         matrix_free(result);
         return NULL;
@@ -3519,7 +3620,7 @@ static Matrix* matrix_matmul_omp(const Matrix *a, const Matrix *b) {
         }
     }
 
-    free(b_colmajor);
+    cml_free(b_colmajor);
     return result;
 }
 #endif /* _OPENMP */
@@ -3548,7 +3649,7 @@ Matrix* matrix_matmul(const Matrix *a, const Matrix *b) {
     }
 
     /* Allocate transposed B for cache-friendly column access */
-    double *b_colmajor = malloc(K * N * sizeof(double));
+    double *b_colmajor = cml_malloc(K * N * sizeof(double));
     if (!b_colmajor) {
         matrix_free(result);
         return NULL;
@@ -3571,7 +3672,7 @@ Matrix* matrix_matmul(const Matrix *a, const Matrix *b) {
         }
     }
 
-    free(b_colmajor);
+    cml_free(b_colmajor);
     return result;
 }
 
@@ -3647,7 +3748,6 @@ Matrix* matrix_identity(size_t n) {
  * @file utils.c
  * @brief Implementation of utility functions
  */
-
 
 #include <stdlib.h>
 #include <string.h>
@@ -3779,7 +3879,7 @@ void shuffle_indices(size_t *indices, size_t n) {
 char* cml_strdup(const char *s) {
     if (!s) return NULL;
     size_t len = strlen(s);
-    char *dup = malloc(len + 1);
+    char *dup = cml_malloc(len + 1);
     if (!dup) return NULL;
     memcpy(dup, s, len + 1);
     return dup;
@@ -3791,7 +3891,6 @@ char* cml_strdup(const char *s) {
  * @file cml_error.c
  * @brief Implementation of unified error handling
  */
-
 
 #include <stdarg.h>
 
@@ -3833,8 +3932,6 @@ const char* cml_status_string(CMLStatus code) {
  * @file vector.c
  * @brief Implementation of vector operations
  */
-
-
 
 #include <math.h>
 #include <stdio.h>
@@ -3897,8 +3994,6 @@ Matrix* vector_sub(const Matrix *a, const Matrix *b) {
 
 #define _POSIX_C_SOURCE 200809L
 
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -3918,7 +4013,7 @@ static int      g_header_count = 0;
 
 static void free_headers(void) {
     for (int i = 0; i < g_header_count; i++) {
-        free(g_header_storage[i]);
+        cml_free(g_header_storage[i]);
         g_header_storage[i] = NULL;
         g_header_ptrs[i] = NULL;
     }
@@ -3974,7 +4069,7 @@ static char* read_file_contents(const char *path) {
     fseek(fp, 0, SEEK_SET);
     if (sz < 0) { fclose(fp); return NULL; }
 
-    char *buf = malloc((size_t)sz + 1);
+    char *buf = cml_malloc((size_t)sz + 1);
     if (!buf) { fclose(fp); return NULL; }
     size_t nread = fread(buf, 1, (size_t)sz, fp);
     buf[nread] = '\0';
@@ -4022,7 +4117,7 @@ char csv_detect_delimiter(const char *path) {
         p++;
     }
 
-    free(contents);
+    cml_free(contents);
 
     if (tabs > commas && tabs > semis) return '\t';
     if (semis > commas && semis > tabs) return ';';
@@ -4228,9 +4323,9 @@ Matrix* csv_load_ext(const char *path, const CSVOptions *opts) {
     /* Two-pass: first pass to count rows/cols, second pass to fill data.
        Simpler: collect all values in a dynamic array. */
     size_t capacity = INITIAL_CAPACITY;
-    double *values = malloc(capacity * sizeof(double));
+    double *values = cml_malloc(capacity * sizeof(double));
     if (!values) {
-        free(buf);
+        cml_free(buf);
         cml_set_error(CML_ERROR_MEMORY, "csv_load_ext: allocation failed");
         return NULL;
     }
@@ -4289,10 +4384,10 @@ Matrix* csv_load_ext(const char *path, const CSVOptions *opts) {
 
                 if (total_values >= capacity) {
                     capacity *= 2;
-                    double *nv = realloc(values, capacity * sizeof(double));
+                    double *nv = cml_realloc(values, capacity * sizeof(double));
                     if (!nv) {
-                        free(values);
-                        free(buf);
+                        cml_free(values);
+                        cml_free(buf);
                         free_headers();
                         cml_set_error(CML_ERROR_MEMORY, "csv_load_ext: allocation failed");
                         return NULL;
@@ -4338,10 +4433,10 @@ Matrix* csv_load_ext(const char *path, const CSVOptions *opts) {
             for (size_t pc = row_cols; pc < cols; pc++) {
                 if (total_values >= capacity) {
                     capacity *= 2;
-                    double *nv = realloc(values, capacity * sizeof(double));
+                    double *nv = cml_realloc(values, capacity * sizeof(double));
                     if (!nv) {
-                        free(values);
-                        free(buf);
+                        cml_free(values);
+                        cml_free(buf);
                         free_headers();
                         cml_set_error(CML_ERROR_MEMORY, "csv_load_ext: allocation failed");
                         return NULL;
@@ -4360,21 +4455,21 @@ Matrix* csv_load_ext(const char *path, const CSVOptions *opts) {
         if (max_rows > 0 && (int)rows >= max_rows) break;
     }
 
-    free(buf);
+    cml_free(buf);
 
     if (rows == 0 || cols == 0) {
-        free(values);
+        cml_free(values);
         cml_set_error(CML_ERROR_PARSE, "csv_load_ext: no data found in '%s'", path);
         return NULL;
     }
 
     Matrix *m = matrix_alloc(rows, cols);
     if (!m) {
-        free(values);
+        cml_free(values);
         return NULL;
     }
     memcpy(m->data, values, rows * cols * sizeof(double));
-    free(values);
+    cml_free(values);
 
     return m;
 }
@@ -4402,7 +4497,7 @@ Matrix* csv_load(const char *filename, int has_header) {
     size_t rows = 0;
     size_t cols = 0;
 
-    double *values = malloc(capacity * sizeof(double));
+    double *values = cml_malloc(capacity * sizeof(double));
     if (!values) {
         fclose(fp);
         cml_set_error(CML_ERROR_MEMORY, "csv_load: memory allocation failed");
@@ -4412,7 +4507,7 @@ Matrix* csv_load(const char *filename, int has_header) {
     /* Skip header if present */
     if (has_header) {
         if (!fgets(line, sizeof(line), fp)) {
-            free(values);
+            cml_free(values);
             fclose(fp);
             cml_set_error(CML_ERROR_PARSE, "csv_load: file is empty");
             return NULL;
@@ -4439,16 +4534,16 @@ Matrix* csv_load(const char *filename, int has_header) {
             if (ptr == end) {
                 cml_set_error(CML_ERROR_PARSE, "csv_load: parse error at row %zu, col %zu",
                               rows + 1, col + 1);
-                free(values);
+                cml_free(values);
                 fclose(fp);
                 return NULL;
             }
 
             if (rows * cols + col >= capacity) {
                 capacity *= 2;
-                double *nv = realloc(values, capacity * sizeof(double));
+                double *nv = cml_realloc(values, capacity * sizeof(double));
                 if (!nv) {
-                    free(values);
+                    cml_free(values);
                     fclose(fp);
                     cml_set_error(CML_ERROR_MEMORY, "csv_load: memory allocation failed");
                     return NULL;
@@ -4472,19 +4567,19 @@ Matrix* csv_load(const char *filename, int has_header) {
     fclose(fp);
 
     if (rows == 0 || cols == 0) {
-        free(values);
+        cml_free(values);
         cml_set_error(CML_ERROR_PARSE, "csv_load: no data found");
         return NULL;
     }
 
     Matrix *m = matrix_alloc(rows, cols);
     if (!m) {
-        free(values);
+        cml_free(values);
         return NULL;
     }
 
     memcpy(m->data, values, rows * cols * sizeof(double));
-    free(values);
+    cml_free(values);
     return m;
 }
 
@@ -4517,7 +4612,6 @@ int csv_save(const Matrix *m, const char *filename) {
  * @file metrics.c
  * @brief Implementation of evaluation metrics
  */
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -4793,7 +4887,7 @@ double f1_score_weighted(const Matrix *y_true, const Matrix *y_pred, int n_class
     if (!cm) return 0.0;
 
     /* Compute support (count of each class in y_true) */
-    double *support = calloc((size_t)n_classes, sizeof(double));
+    double *support = cml_calloc((size_t)n_classes, sizeof(double));
     if (!support) {
         matrix_free(cm);
         return 0.0;
@@ -4817,7 +4911,7 @@ double f1_score_weighted(const Matrix *y_true, const Matrix *y_pred, int n_class
     }
 
     matrix_free(cm);
-    free(support);
+    cml_free(support);
 
     if ((double)n == 0.0) return 0.0;
     return weighted_sum / (double)n;
@@ -4836,13 +4930,13 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
     if (n != nl || n == 0) return 0.0;
 
     /* Count cluster sizes */
-    size_t *cluster_size = calloc((size_t)n_clusters, sizeof(size_t));
+    size_t *cluster_size = cml_calloc((size_t)n_clusters, sizeof(size_t));
     if (!cluster_size) return 0.0;
 
     for (size_t i = 0; i < n; i++) {
         int c = (int)labels->data[i];
         if (c < 0 || c >= n_clusters) {
-            free(cluster_size);
+            cml_free(cluster_size);
             return 0.0;
         }
         cluster_size[c]++;
@@ -4851,7 +4945,7 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
     /* Silhouette is undefined if any cluster has < 2 members (a(i)=0 division) */
     for (int c = 0; c < n_clusters; c++) {
         if (cluster_size[c] < 2) {
-            free(cluster_size);
+            cml_free(cluster_size);
             return 0.0;
         }
     }
@@ -4862,9 +4956,9 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
         int ci = (int)labels->data[i];
 
         /* Compute pairwise distances from i to all other points */
-        double *dist_to_cluster = calloc((size_t)n_clusters, sizeof(double));
+        double *dist_to_cluster = cml_calloc((size_t)n_clusters, sizeof(double));
         if (!dist_to_cluster) {
-            free(cluster_size);
+            cml_free(cluster_size);
             return 0.0;
         }
 
@@ -4903,10 +4997,10 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
         }
 
         total_sil += s_i;
-        free(dist_to_cluster);
+        cml_free(dist_to_cluster);
     }
 
-    free(cluster_size);
+    cml_free(cluster_size);
     return total_sil / (double)n;
 }
 
@@ -4916,8 +5010,6 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
  * @file kmeans.c
  * @brief Implementation of k-Means clustering
  */
-
-
 
 #include <stdlib.h>
 #include <math.h>
@@ -4962,7 +5054,7 @@ KMeansModel* kmeans_fit(const Matrix *X, int k, int max_iter, unsigned int seed)
         k = (int)n;
     }
 
-    KMeansModel *model = malloc(sizeof(KMeansModel));
+    KMeansModel *model = cml_malloc(sizeof(KMeansModel));
     if (!model) {
         return NULL;
     }
@@ -4972,13 +5064,13 @@ KMeansModel* kmeans_fit(const Matrix *X, int k, int max_iter, unsigned int seed)
     model->centroids = matrix_alloc(k, d);
 
     if (!model->centroids) {
-        free(model);
+        cml_free(model);
         return NULL;
     }
 
     /* Initialize centroids randomly from data points */
     rand_seed(seed);
-    size_t *used = calloc(n, sizeof(size_t));
+    size_t *used = cml_calloc(n, sizeof(size_t));
     if (!used) {
         kmeans_free(model);
         return NULL;
@@ -4995,10 +5087,10 @@ KMeansModel* kmeans_fit(const Matrix *X, int k, int max_iter, unsigned int seed)
             model->centroids->data[c * d + j] = X->data[idx * d + j];
         }
     }
-    free(used);
+    cml_free(used);
 
     /* Cluster assignments */
-    int *assignments = malloc(n * sizeof(int));
+    int *assignments = cml_malloc(n * sizeof(int));
     if (!assignments) {
         kmeans_free(model);
         return NULL;
@@ -5023,9 +5115,9 @@ KMeansModel* kmeans_fit(const Matrix *X, int k, int max_iter, unsigned int seed)
         }
 
         /* Update step: recompute centroids as mean of assigned points */
-        int *counts = calloc(k, sizeof(int));
+        int *counts = cml_calloc(k, sizeof(int));
         if (!counts) {
-            free(assignments);
+            cml_free(assignments);
             kmeans_free(model);
             return NULL;
         }
@@ -5051,10 +5143,10 @@ KMeansModel* kmeans_fit(const Matrix *X, int k, int max_iter, unsigned int seed)
             }
         }
 
-        free(counts);
+        cml_free(counts);
     }
 
-    free(assignments);
+    cml_free(assignments);
     return model;
 }
 
@@ -5078,7 +5170,7 @@ Matrix* kmeans_predict(const KMeansModel *model, const Matrix *X) {
 void kmeans_free(KMeansModel *model) {
     if (model) {
         matrix_free(model->centroids);
-        free(model);
+        cml_free(model);
     }
 }
 
@@ -5090,7 +5182,6 @@ void kmeans_free(KMeansModel *model) {
  *
  * Brute-force O(n^2) approach. Uses BFS for cluster expansion.
  */
-
 
 #include <stdlib.h>
 #include <math.h>
@@ -5110,7 +5201,7 @@ static double dist_sq(const Matrix *X, size_t i, size_t j) {
 /* --- Find neighbors within epsilon, return count and fill indices --- */
 static int* find_neighbors(const Matrix *X, size_t point, double eps_sq, int *out_count) {
     size_t N = X->rows;
-    int *neighbors = malloc(N * sizeof(int));
+    int *neighbors = cml_malloc(N * sizeof(int));
     if (!neighbors) { *out_count = 0; return NULL; }
 
     int count = 0;
@@ -5129,23 +5220,23 @@ int* dbscan_fit(const DBSCAN *model, const Matrix *X) {
     size_t N = X->rows;
     double eps_sq = model->epsilon * model->epsilon;
 
-    int *labels = malloc(N * sizeof(int));
+    int *labels = cml_malloc(N * sizeof(int));
     if (!labels) return NULL;
 
     /* Initialize all labels to -1 (unvisited/noise) */
     for (size_t i = 0; i < N; i++) labels[i] = -1;
 
     /* Determine core points */
-    int *is_core = calloc(N, sizeof(int));
-    if (!is_core) { free(labels); return NULL; }
+    int *is_core = cml_calloc(N, sizeof(int));
+    if (!is_core) { cml_free(labels); return NULL; }
 
     /* For each point, compute neighbor count to determine core status */
-    int **neighbor_lists = malloc(N * sizeof(int*));
-    int  *neighbor_counts = malloc(N * sizeof(int));
+    int **neighbor_lists = cml_malloc(N * sizeof(int*));
+    int  *neighbor_counts = cml_malloc(N * sizeof(int));
     if (!neighbor_lists || !neighbor_counts) {
-        free(labels); free(is_core);
-        if (neighbor_lists) free(neighbor_lists);
-        if (neighbor_counts) free(neighbor_counts);
+        cml_free(labels); cml_free(is_core);
+        if (neighbor_lists) cml_free(neighbor_lists);
+        if (neighbor_counts) cml_free(neighbor_counts);
         return NULL;
     }
 
@@ -5160,11 +5251,11 @@ int* dbscan_fit(const DBSCAN *model, const Matrix *X) {
     int cluster_id = 0;
 
     /* BFS queue */
-    int *queue = malloc(N * sizeof(int));
+    int *queue = cml_malloc(N * sizeof(int));
     if (!queue) {
-        free(labels); free(is_core);
-        for (size_t i = 0; i < N; i++) free(neighbor_lists[i]);
-        free(neighbor_lists); free(neighbor_counts);
+        cml_free(labels); cml_free(is_core);
+        for (size_t i = 0; i < N; i++) cml_free(neighbor_lists[i]);
+        cml_free(neighbor_lists); cml_free(neighbor_counts);
         return NULL;
     }
 
@@ -5203,11 +5294,11 @@ int* dbscan_fit(const DBSCAN *model, const Matrix *X) {
     }
 
     /* Cleanup */
-    free(queue);
-    for (size_t i = 0; i < N; i++) free(neighbor_lists[i]);
-    free(neighbor_lists);
-    free(neighbor_counts);
-    free(is_core);
+    cml_free(queue);
+    for (size_t i = 0; i < N; i++) cml_free(neighbor_lists[i]);
+    cml_free(neighbor_lists);
+    cml_free(neighbor_counts);
+    cml_free(is_core);
 
     return labels;
 }
@@ -5224,7 +5315,7 @@ int dbscan_count_clusters(const int *labels, int n) {
 }
 
 DBSCAN* dbscan_create(void) {
-    DBSCAN *model = calloc(1, sizeof(DBSCAN));
+    DBSCAN *model = cml_calloc(1, sizeof(DBSCAN));
     if (!model) return NULL;
     model->epsilon = 0.5;
     model->min_samples = 5;
@@ -5232,7 +5323,7 @@ DBSCAN* dbscan_create(void) {
 }
 
 void dbscan_free(DBSCAN *model) {
-    if (model) free(model);
+    if (model) cml_free(model);
 }
 
 
@@ -5241,8 +5332,6 @@ void dbscan_free(DBSCAN *model) {
  * @file preprocessing.c
  * @brief Implementation of data preprocessing functions
  */
-
-
 
 #include <stdlib.h>
 #include <string.h>
@@ -5270,7 +5359,7 @@ TrainTestSplit train_test_split(const Matrix *X, const Matrix *y,
     }
 
     /* Create shuffled indices */
-    size_t *indices = malloc(n * sizeof(size_t));
+    size_t *indices = cml_malloc(n * sizeof(size_t));
     if (!indices) {
         return split;
     }
@@ -5290,7 +5379,7 @@ TrainTestSplit train_test_split(const Matrix *X, const Matrix *y,
 
     if (!split.X_train || !split.X_test || !split.y_train || !split.y_test) {
         train_test_split_free(&split);
-        free(indices);
+        cml_free(indices);
         return (TrainTestSplit){NULL, NULL, NULL, NULL};
     }
 
@@ -5316,7 +5405,7 @@ TrainTestSplit train_test_split(const Matrix *X, const Matrix *y,
         }
     }
 
-    free(indices);
+    cml_free(indices);
     return split;
 }
 
@@ -5338,14 +5427,14 @@ Scaler* standardize_fit(const Matrix *X) {
         return NULL;
     }
 
-    Scaler *scaler = malloc(sizeof(Scaler));
+    Scaler *scaler = cml_malloc(sizeof(Scaler));
     if (!scaler) {
         return NULL;
     }
 
     scaler->n_features = X->cols;
-    scaler->means = malloc(X->cols * sizeof(double));
-    scaler->stds = malloc(X->cols * sizeof(double));
+    scaler->means = cml_malloc(X->cols * sizeof(double));
+    scaler->stds = cml_malloc(X->cols * sizeof(double));
 
     if (!scaler->means || !scaler->stds) {
         scaler_free(scaler);
@@ -5419,9 +5508,9 @@ Matrix* standardize_fit_transform(const Matrix *X, Scaler **scaler_out) {
 
 void scaler_free(Scaler *scaler) {
     if (scaler) {
-        free(scaler->means);
-        free(scaler->stds);
-        free(scaler);
+        cml_free(scaler->means);
+        cml_free(scaler->stds);
+        cml_free(scaler);
     }
 }
 
@@ -5430,14 +5519,14 @@ MinMaxScaler* minmax_fit(const Matrix *X) {
         return NULL;
     }
 
-    MinMaxScaler *scaler = malloc(sizeof(MinMaxScaler));
+    MinMaxScaler *scaler = cml_malloc(sizeof(MinMaxScaler));
     if (!scaler) {
         return NULL;
     }
 
     scaler->n_features = X->cols;
-    scaler->mins = malloc(X->cols * sizeof(double));
-    scaler->maxs = malloc(X->cols * sizeof(double));
+    scaler->mins = cml_malloc(X->cols * sizeof(double));
+    scaler->maxs = cml_malloc(X->cols * sizeof(double));
 
     if (!scaler->mins || !scaler->maxs) {
         minmax_scaler_free(scaler);
@@ -5491,9 +5580,9 @@ Matrix* minmax_transform(const Matrix *X, const MinMaxScaler *scaler) {
 
 void minmax_scaler_free(MinMaxScaler *scaler) {
     if (scaler) {
-        free(scaler->mins);
-        free(scaler->maxs);
-        free(scaler);
+        cml_free(scaler->mins);
+        cml_free(scaler->maxs);
+        cml_free(scaler);
     }
 }
 
@@ -5523,7 +5612,6 @@ Matrix* add_bias_column(const Matrix *X) {
  * @file knn.c
  * @brief Implementation of k-Nearest Neighbors classifier
  */
-
 
 #include <stdlib.h>
 #include <math.h>
@@ -5559,7 +5647,7 @@ KNNModel* knn_fit(const Matrix *X, const Matrix *y, int k) {
         return NULL;
     }
 
-    KNNModel *model = malloc(sizeof(KNNModel));
+    KNNModel *model = cml_malloc(sizeof(KNNModel));
     if (!model) {
         return NULL;
     }
@@ -5596,7 +5684,7 @@ Matrix* knn_predict(const KNNModel *model, const Matrix *X) {
         return NULL;
     }
 
-    Neighbor *neighbors = malloc(n_train * sizeof(Neighbor));
+    Neighbor *neighbors = cml_malloc(n_train * sizeof(Neighbor));
     if (!neighbors) {
         matrix_free(predictions);
         return NULL;
@@ -5629,9 +5717,9 @@ Matrix* knn_predict(const KNNModel *model, const Matrix *X) {
 
         /* Count votes for each class (0 to max_label) */
         int n_classes = (int)max_label + 1;
-        int *votes = calloc(n_classes, sizeof(int));
+        int *votes = cml_calloc(n_classes, sizeof(int));
         if (!votes) {
-            free(neighbors);
+            cml_free(neighbors);
             matrix_free(predictions);
             return NULL;
         }
@@ -5654,10 +5742,10 @@ Matrix* knn_predict(const KNNModel *model, const Matrix *X) {
         }
 
         predictions->data[i] = (double)predicted_class;
-        free(votes);
+        cml_free(votes);
     }
 
-    free(neighbors);
+    cml_free(neighbors);
     return predictions;
 }
 
@@ -5679,7 +5767,7 @@ Matrix* knn_predict_proba(const KNNModel *model, const Matrix *X, int n_classes)
     Matrix *proba = matrix_alloc(n_test, (size_t)n_classes);
     if (!proba) return NULL;
 
-    Neighbor *neighbors = malloc(n_train * sizeof(Neighbor));
+    Neighbor *neighbors = cml_malloc(n_train * sizeof(Neighbor));
     if (!neighbors) {
         matrix_free(proba);
         return NULL;
@@ -5701,9 +5789,9 @@ Matrix* knn_predict_proba(const KNNModel *model, const Matrix *X, int n_classes)
         qsort(neighbors, n_train, sizeof(Neighbor), compare_neighbors);
 
         /* Count class frequencies among k nearest neighbors */
-        int *votes = calloc((size_t)n_classes, sizeof(int));
+        int *votes = cml_calloc((size_t)n_classes, sizeof(int));
         if (!votes) {
-            free(neighbors);
+            cml_free(neighbors);
             matrix_free(proba);
             return NULL;
         }
@@ -5720,10 +5808,10 @@ Matrix* knn_predict_proba(const KNNModel *model, const Matrix *X, int n_classes)
             proba->data[i * (size_t)n_classes + c] = (double)votes[c] / (double)k;
         }
 
-        free(votes);
+        cml_free(votes);
     }
 
-    free(neighbors);
+    cml_free(neighbors);
     return proba;
 }
 
@@ -5731,7 +5819,7 @@ void knn_free(KNNModel *model) {
     if (model) {
         matrix_free(model->X_train);
         matrix_free(model->y_train);
-        free(model);
+        cml_free(model);
     }
 }
 
@@ -5742,7 +5830,6 @@ void knn_free(KNNModel *model) {
  * @brief One-hot encoding transformer implementation
  */
 
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -5751,7 +5838,7 @@ void knn_free(KNNModel *model) {
  * ============================================ */
 
 OneHotEncoder* onehot_encoder_create(void) {
-    OneHotEncoder *enc = calloc(1, sizeof(OneHotEncoder));
+    OneHotEncoder *enc = cml_calloc(1, sizeof(OneHotEncoder));
     if (!enc) return NULL;
 
     enc->n_features       = 0;
@@ -5770,14 +5857,14 @@ OneHotEncoder* onehot_encoder_create(void) {
 static void encoder_free_params(OneHotEncoder *enc) {
     if (!enc) return;
     if (enc->n_categories) {
-        free(enc->n_categories);
+        cml_free(enc->n_categories);
         enc->n_categories = NULL;
     }
     if (enc->categories_) {
         for (int j = 0; j < enc->n_features; j++) {
-            free(enc->categories_[j]);
+            cml_free(enc->categories_[j]);
         }
-        free(enc->categories_);
+        cml_free(enc->categories_);
         enc->categories_ = NULL;
     }
     enc->n_features = 0;
@@ -5792,7 +5879,7 @@ static void encoder_free_params(OneHotEncoder *enc) {
 static int collect_unique_categories(const Matrix *X, size_t col,
                                       int **out_categories, int *out_count) {
     size_t N = X->rows;
-    int *values = malloc(N * sizeof(int));
+    int *values = cml_malloc(N * sizeof(int));
     if (!values) return -1;
 
     /* Collect all values */
@@ -5801,9 +5888,9 @@ static int collect_unique_categories(const Matrix *X, size_t col,
     }
 
     /* Find unique values (simple O(n^2) approach) */
-    int *unique = malloc(N * sizeof(int));
+    int *unique = cml_malloc(N * sizeof(int));
     if (!unique) {
-        free(values);
+        cml_free(values);
         return -1;
     }
     int n_unique = 0;
@@ -5833,17 +5920,17 @@ static int collect_unique_categories(const Matrix *X, size_t col,
     }
 
     /* Allocate exact-sized output */
-    *out_categories = malloc(n_unique * sizeof(int));
+    *out_categories = cml_malloc(n_unique * sizeof(int));
     if (!*out_categories) {
-        free(values);
-        free(unique);
+        cml_free(values);
+        cml_free(unique);
         return -1;
     }
     memcpy(*out_categories, unique, n_unique * sizeof(int));
     *out_count = n_unique;
 
-    free(values);
-    free(unique);
+    cml_free(values);
+    cml_free(unique);
     return 0;
 }
 
@@ -5859,8 +5946,8 @@ int onehot_encoder_fit(OneHotEncoder *encoder, const Matrix *X) {
 
     int F = (int)X->cols;
     encoder->n_features = F;
-    encoder->n_categories = calloc(F, sizeof(int));
-    encoder->categories_  = calloc(F, sizeof(int*));
+    encoder->n_categories = cml_calloc(F, sizeof(int));
+    encoder->categories_  = cml_calloc(F, sizeof(int*));
 
     if (!encoder->n_categories || !encoder->categories_) {
         encoder_free_params(encoder);
@@ -5936,7 +6023,7 @@ Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X) 
 void onehot_encoder_free(OneHotEncoder *encoder) {
     if (encoder) {
         encoder_free_params(encoder);
-        free(encoder);
+        cml_free(encoder);
     }
 }
 
@@ -5945,9 +6032,6 @@ void onehot_encoder_free(OneHotEncoder *encoder) {
 /**
  * estimator.c - Unified Estimator API implementation
  */
-
-
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -5959,16 +6043,16 @@ void onehot_encoder_free(OneHotEncoder *encoder) {
  */
 
 TrainingHistory* training_history_alloc(size_t initial_capacity) {
-    TrainingHistory *history = malloc(sizeof(TrainingHistory));
+    TrainingHistory *history = cml_malloc(sizeof(TrainingHistory));
     if (!history) return NULL;
 
-    history->loss_history = malloc(initial_capacity * sizeof(double));
-    history->metric_history = malloc(initial_capacity * sizeof(double));
+    history->loss_history = cml_malloc(initial_capacity * sizeof(double));
+    history->metric_history = cml_malloc(initial_capacity * sizeof(double));
 
     if (!history->loss_history || !history->metric_history) {
-        free(history->loss_history);
-        free(history->metric_history);
-        free(history);
+        cml_free(history->loss_history);
+        cml_free(history->metric_history);
+        cml_free(history);
         return NULL;
     }
 
@@ -5986,8 +6070,8 @@ void training_history_append(TrainingHistory *history, double loss, double metri
     // Expand if needed
     if (history->n_epochs >= history->capacity) {
         size_t new_capacity = history->capacity * 2;
-        double *new_loss = realloc(history->loss_history, new_capacity * sizeof(double));
-        double *new_metric = realloc(history->metric_history, new_capacity * sizeof(double));
+        double *new_loss = cml_realloc(history->loss_history, new_capacity * sizeof(double));
+        double *new_metric = cml_realloc(history->metric_history, new_capacity * sizeof(double));
 
         if (!new_loss || !new_metric) {
             // Keep old arrays if realloc fails
@@ -6006,9 +6090,9 @@ void training_history_append(TrainingHistory *history, double loss, double metri
 
 void training_history_free(TrainingHistory *history) {
     if (!history) return;
-    free(history->loss_history);
-    free(history->metric_history);
-    free(history);
+    cml_free(history->loss_history);
+    cml_free(history->metric_history);
+    cml_free(history);
 }
 
 void training_history_print(const TrainingHistory *history) {
@@ -6204,7 +6288,6 @@ void verbose_print_progress_bar(int current, int total, int bar_width) {
  * cml_serialization.c - Shared serialization helpers
  */
 
-
 #include <string.h>
 
 static const char cml_ser_magic[4] = {'C', 'M', 'L', '\0'};
@@ -6287,10 +6370,6 @@ int cml_ser_read_int(FILE *f, int *val) {
  * @file linear_regression.c
  * @brief Implementation of linear regression with Estimator API
  */
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -6414,7 +6493,7 @@ LinearRegression* linear_regression_create_full(
     int fit_intercept,
     int normalize
 ) {
-    LinearRegression *model = calloc(1, sizeof(LinearRegression));
+    LinearRegression *model = cml_calloc(1, sizeof(LinearRegression));
     if (!model) return NULL;
 
     // Set up base estimator
@@ -6662,7 +6741,7 @@ void linear_regression_free(Estimator *self) {
     matrix_free(model->weights);
     matrix_free(model->coef_);
     training_history_free(model->base.history);
-    free(model);
+    cml_free(model);
 }
 
 int linear_regression_save(const Estimator *self, const char *filename) {
@@ -6926,9 +7005,6 @@ Matrix* linreg_predict(const Matrix *X, const Matrix *weights) {
  * @brief Implementation of logistic regression
  */
 
-
-
-
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -7076,7 +7152,7 @@ Matrix* logreg_predict(const Matrix *X, const Matrix *weights, double threshold)
  * ============================================ */
 
 LogisticRegressionModel* logreg_model_create(void) {
-    LogisticRegressionModel *model = calloc(1, sizeof(LogisticRegressionModel));
+    LogisticRegressionModel *model = cml_calloc(1, sizeof(LogisticRegressionModel));
     if (!model) return NULL;
 
     model->base.type        = MODEL_LOGISTIC_REGRESSION;
@@ -7257,7 +7333,7 @@ static void logreg_model_free(Estimator *self) {
         if (model->weights) {
             matrix_free(model->weights);
         }
-        free(model);
+        cml_free(model);
     }
 }
 
@@ -7336,7 +7412,7 @@ int         softmax_model_save(const Estimator *self, const char *path);
 Estimator*  softmax_model_load(const char *path);
 
 SoftmaxRegressionModel* softmax_model_create(void) {
-    SoftmaxRegressionModel *model = calloc(1, sizeof(SoftmaxRegressionModel));
+    SoftmaxRegressionModel *model = cml_calloc(1, sizeof(SoftmaxRegressionModel));
     if (!model) return NULL;
 
     model->base.type        = MODEL_LOGISTIC_REGRESSION;
@@ -7374,7 +7450,7 @@ static void softmax_free_params(SoftmaxRegressionModel *model) {
         matrix_free(model->weights);
         model->weights = NULL;
     }
-    free(model->biases);
+    cml_free(model->biases);
     model->biases = NULL;
     model->n_features = 0;
     model->n_classes = 0;
@@ -7405,7 +7481,7 @@ static Estimator* softmax_model_fit(Estimator *self, const Matrix *X, const Matr
     Matrix *W = matrix_alloc((size_t)C, m);
     if (!W) return NULL;
 
-    double *b = calloc((size_t)C, sizeof(double));
+    double *b = cml_calloc((size_t)C, sizeof(double));
     if (!b) {
         matrix_free(W);
         return NULL;
@@ -7415,7 +7491,7 @@ static Estimator* softmax_model_fit(Estimator *self, const Matrix *X, const Matr
     Matrix *Y = matrix_alloc(n, (size_t)C);
     if (!Y) {
         matrix_free(W);
-        free(b);
+        cml_free(b);
         return NULL;
     }
     /* matrix_alloc zeros the data, so just set the 1s */
@@ -7436,7 +7512,7 @@ static Estimator* softmax_model_fit(Estimator *self, const Matrix *X, const Matr
         if (!Z) {
             matrix_free(Y);
             matrix_free(W);
-            free(b);
+            cml_free(b);
             return NULL;
         }
 
@@ -7456,7 +7532,7 @@ static Estimator* softmax_model_fit(Estimator *self, const Matrix *X, const Matr
             matrix_free(Z);
             matrix_free(Y);
             matrix_free(W);
-            free(b);
+            cml_free(b);
             return NULL;
         }
 
@@ -7486,7 +7562,7 @@ static Estimator* softmax_model_fit(Estimator *self, const Matrix *X, const Matr
             matrix_free(Z);
             matrix_free(Y);
             matrix_free(W);
-            free(b);
+            cml_free(b);
             return NULL;
         }
 
@@ -7620,7 +7696,7 @@ static void softmax_model_free(Estimator *self) {
     SoftmaxRegressionModel *model = (SoftmaxRegressionModel *)self;
     if (model) {
         softmax_free_params(model);
-        free(model);
+        cml_free(model);
     }
 }
 
@@ -7678,7 +7754,7 @@ Estimator* softmax_model_load(const char *path) {
     model->weights = cml_ser_read_matrix(f);
     if (!model->weights) { softmax_model_free((Estimator*)model); fclose(f); return NULL; }
 
-    model->biases = malloc((size_t)n_classes * sizeof(double));
+    model->biases = cml_malloc((size_t)n_classes * sizeof(double));
     if (!model->biases) { softmax_model_free((Estimator*)model); fclose(f); return NULL; }
     if (cml_ser_read_doubles(f, model->biases, n_classes) != 0) {
         softmax_model_free((Estimator*)model); fclose(f); return NULL;
@@ -7698,7 +7774,6 @@ Estimator* softmax_model_load(const char *path) {
  * w = (X^T X + alpha * I)^{-1} X^T y
  * Bias is handled by centering X and y, fitting, then restoring.
  */
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -7769,7 +7844,7 @@ static Matrix* mat_inv(const Matrix *m) {
  * ---------------------------------------------------------------- */
 
 RidgeModel* ridge_model_create(void) {
-    RidgeModel *m = calloc(1, sizeof(RidgeModel));
+    RidgeModel *m = cml_calloc(1, sizeof(RidgeModel));
     if (!m) return NULL;
 
     m->base.type  = MODEL_LINEAR_REGRESSION;   /* closest match */
@@ -7810,7 +7885,7 @@ Estimator* ridge_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     if (m->weights) { matrix_free(m->weights); m->weights = NULL; }
 
     /* Center X and y to handle intercept cleanly */
-    double *x_mean = calloc(p, sizeof(double));
+    double *x_mean = cml_calloc(p, sizeof(double));
     double  y_mean = 0.0;
     if (!x_mean) return NULL;
 
@@ -7827,7 +7902,7 @@ Estimator* ridge_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     Matrix *Xc = matrix_alloc(n, p);
     Matrix *yc = matrix_alloc(n, 1);
     if (!Xc || !yc) {
-        free(x_mean);
+        cml_free(x_mean);
         matrix_free(Xc); matrix_free(yc);
         return NULL;
     }
@@ -7840,14 +7915,14 @@ Estimator* ridge_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     /* Xc^T */
     Matrix *Xct = matrix_transpose(Xc);
     if (!Xct) {
-        free(x_mean); matrix_free(Xc); matrix_free(yc);
+        cml_free(x_mean); matrix_free(Xc); matrix_free(yc);
         return NULL;
     }
 
     /* A = Xc^T Xc */
     Matrix *A = matrix_matmul(Xct, Xc);
     matrix_free(Xct);
-    if (!A) { free(x_mean); matrix_free(Xc); matrix_free(yc); return NULL; }
+    if (!A) { cml_free(x_mean); matrix_free(Xc); matrix_free(yc); return NULL; }
 
     /* Add alpha to diagonal */
     for (size_t i = 0; i < p; i++)
@@ -7856,29 +7931,29 @@ Estimator* ridge_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     /* A_inv */
     Matrix *A_inv = mat_inv(A);
     matrix_free(A);
-    if (!A_inv) { free(x_mean); matrix_free(Xc); matrix_free(yc); return NULL; }
+    if (!A_inv) { cml_free(x_mean); matrix_free(Xc); matrix_free(yc); return NULL; }
 
     /* Xc^T yc */
     Matrix *Xct2 = matrix_transpose(Xc);
     matrix_free(Xc);
-    if (!Xct2) { free(x_mean); matrix_free(yc); matrix_free(A_inv); return NULL; }
+    if (!Xct2) { cml_free(x_mean); matrix_free(yc); matrix_free(A_inv); return NULL; }
 
     Matrix *Xty = matrix_matmul(Xct2, yc);
     matrix_free(Xct2);
     matrix_free(yc);
-    if (!Xty) { free(x_mean); matrix_free(A_inv); return NULL; }
+    if (!Xty) { cml_free(x_mean); matrix_free(A_inv); return NULL; }
 
     /* w = A_inv * Xty */
     m->weights = matrix_matmul(A_inv, Xty);
     matrix_free(A_inv);
     matrix_free(Xty);
-    if (!m->weights) { free(x_mean); return NULL; }
+    if (!m->weights) { cml_free(x_mean); return NULL; }
 
     /* bias = y_mean - x_mean^T w */
     m->bias = y_mean;
     for (size_t j = 0; j < p; j++)
         m->bias -= x_mean[j] * m->weights->data[j];
-    free(x_mean);
+    cml_free(x_mean);
 
     m->n_features = (int)p;
     m->base.is_fitted = 1;
@@ -7922,7 +7997,7 @@ void ridge_free(Estimator *self) {
     RidgeModel *m = (RidgeModel *)self;
     matrix_free(m->weights);
     training_history_free(m->base.history);
-    free(m);
+    cml_free(m);
 }
 
 
@@ -7931,7 +8006,6 @@ void ridge_free(Estimator *self) {
  * @file lasso.c
  * @brief Lasso (L1-regularized) regression – coordinate descent
  */
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -7953,7 +8027,7 @@ static double soft_threshold(double rho, double alpha) {
  * ---------------------------------------------------------------- */
 
 LassoModel* lasso_model_create(void) {
-    LassoModel *m = calloc(1, sizeof(LassoModel));
+    LassoModel *m = cml_calloc(1, sizeof(LassoModel));
     if (!m) return NULL;
 
     m->base.type  = MODEL_LINEAR_REGRESSION;
@@ -7993,7 +8067,7 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     if (m->weights) { matrix_free(m->weights); m->weights = NULL; }
 
     /* Center X and y */
-    double *x_mean = calloc(p, sizeof(double));
+    double *x_mean = cml_calloc(p, sizeof(double));
     double  y_mean = 0.0;
     if (!x_mean) return NULL;
 
@@ -8007,10 +8081,10 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
         x_mean[j] /= (double)n;
 
     /* Centered data */
-    double *Xc = malloc(n * p * sizeof(double));
-    double *yc = malloc(n * sizeof(double));
+    double *Xc = cml_malloc(n * p * sizeof(double));
+    double *yc = cml_malloc(n * sizeof(double));
     if (!Xc || !yc) {
-        free(x_mean); free(Xc); free(yc);
+        cml_free(x_mean); cml_free(Xc); cml_free(yc);
         return NULL;
     }
     for (size_t i = 0; i < n; i++) {
@@ -8020,9 +8094,9 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     }
 
     /* Pre-compute X_j^T X_j / n for each feature */
-    double *xj_sq = calloc(p, sizeof(double));
+    double *xj_sq = cml_calloc(p, sizeof(double));
     if (!xj_sq) {
-        free(x_mean); free(Xc); free(yc);
+        cml_free(x_mean); cml_free(Xc); cml_free(yc);
         return NULL;
     }
     for (size_t j = 0; j < p; j++) {
@@ -8035,16 +8109,16 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     }
 
     /* Initialize weights to 0 */
-    double *w = calloc(p, sizeof(double));
+    double *w = cml_calloc(p, sizeof(double));
     if (!w) {
-        free(x_mean); free(Xc); free(yc); free(xj_sq);
+        cml_free(x_mean); cml_free(Xc); cml_free(yc); cml_free(xj_sq);
         return NULL;
     }
 
     /* Residuals r = yc - Xc * w (initially = yc since w=0) */
-    double *r = malloc(n * sizeof(double));
+    double *r = cml_malloc(n * sizeof(double));
     if (!r) {
-        free(x_mean); free(Xc); free(yc); free(xj_sq); free(w);
+        cml_free(x_mean); cml_free(Xc); cml_free(yc); cml_free(xj_sq); cml_free(w);
         return NULL;
     }
     memcpy(r, yc, n * sizeof(double));
@@ -8088,7 +8162,7 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     /* Build weights matrix */
     m->weights = matrix_alloc(p, 1);
     if (!m->weights) {
-        free(x_mean); free(Xc); free(yc); free(xj_sq); free(w); free(r);
+        cml_free(x_mean); cml_free(Xc); cml_free(yc); cml_free(xj_sq); cml_free(w); cml_free(r);
         return NULL;
     }
     for (size_t j = 0; j < p; j++)
@@ -8102,7 +8176,7 @@ Estimator* lasso_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     m->n_features = (int)p;
     m->base.is_fitted = 1;
 
-    free(x_mean); free(Xc); free(yc); free(xj_sq); free(w); free(r);
+    cml_free(x_mean); cml_free(Xc); cml_free(yc); cml_free(xj_sq); cml_free(w); cml_free(r);
     return self;
 }
 
@@ -8145,7 +8219,7 @@ void lasso_free(Estimator *self) {
     LassoModel *m = (LassoModel *)self;
     matrix_free(m->weights);
     training_history_free(m->base.history);
-    free(m);
+    cml_free(m);
 }
 
 
@@ -8154,11 +8228,6 @@ void lasso_free(Estimator *self) {
  * @file svm.c
  * @brief Linear SVM classifier implementation using sub-gradient descent
  */
-
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -8183,7 +8252,7 @@ Estimator*  linear_svc_load(const char *path);
  * ============================================ */
 
 LinearSVC* linear_svc_create(void) {
-    LinearSVC *svc = calloc(1, sizeof(LinearSVC));
+    LinearSVC *svc = cml_calloc(1, sizeof(LinearSVC));
     if (!svc) return NULL;
 
     svc->base.type        = MODEL_SVM;
@@ -8270,7 +8339,7 @@ static Estimator* linear_svc_fit(Estimator *self, const Matrix *X, const Matrix 
     svc->labels_converted = needs_conversion;
 
     /* Create label array (convert to {-1, +1} if needed) */
-    double *labels = malloc(N * sizeof(double));
+    double *labels = cml_malloc(N * sizeof(double));
     if (!labels) return NULL;
 
     for (size_t i = 0; i < N; i++) {
@@ -8284,7 +8353,7 @@ static Estimator* linear_svc_fit(Estimator *self, const Matrix *X, const Matrix 
     /* Initialize weights to small random values */
     svc->weights = matrix_alloc(F, 1);
     if (!svc->weights) {
-        free(labels);
+        cml_free(labels);
         return NULL;
     }
 
@@ -8301,9 +8370,9 @@ static Estimator* linear_svc_fit(Estimator *self, const Matrix *X, const Matrix 
     /* Training loop */
     for (int epoch = 0; epoch < svc->max_iter; epoch++) {
         /* Shuffle sample indices for stochastic gradient descent */
-        size_t *indices = malloc(N * sizeof(size_t));
+        size_t *indices = cml_malloc(N * sizeof(size_t));
         if (!indices) {
-            free(labels);
+            cml_free(labels);
             svc_free_params(svc);
             return NULL;
         }
@@ -8340,7 +8409,7 @@ static Estimator* linear_svc_fit(Estimator *self, const Matrix *X, const Matrix 
         }
         epoch_loss = epoch_loss / (double)N + 0.5 * w_norm_sq;
 
-        free(indices);
+        cml_free(indices);
 
         /* Check convergence */
         if (epoch > 0 && fabs(prev_loss - epoch_loss) < svc->tol) {
@@ -8349,7 +8418,7 @@ static Estimator* linear_svc_fit(Estimator *self, const Matrix *X, const Matrix 
         prev_loss = epoch_loss;
     }
 
-    free(labels);
+    cml_free(labels);
     svc->base.is_fitted = 1;
     return self;
 }
@@ -8441,7 +8510,7 @@ static void linear_svc_free(Estimator *self) {
     LinearSVC *svc = (LinearSVC*)self;
     if (svc) {
         svc_free_params(svc);
-        free(svc);
+        cml_free(svc);
     }
 }
 
@@ -8467,8 +8536,8 @@ static void svm_clf_free_params(SVMClassifier *svm) {
     if (!svm) return;
     if (svm->weights) { matrix_free(svm->weights); svm->weights = NULL; }
     if (svm->support_vectors) { matrix_free(svm->support_vectors); svm->support_vectors = NULL; }
-    if (svm->alphas) { free(svm->alphas); svm->alphas = NULL; }
-    if (svm->labels_train) { free(svm->labels_train); svm->labels_train = NULL; }
+    if (svm->alphas) { cml_free(svm->alphas); svm->alphas = NULL; }
+    if (svm->labels_train) { cml_free(svm->labels_train); svm->labels_train = NULL; }
     svm->bias = 0.0;
     svm->n_support = 0;
     svm->n_features = 0;
@@ -8476,7 +8545,7 @@ static void svm_clf_free_params(SVMClassifier *svm) {
 }
 
 SVMClassifier* svm_classifier_create(SVMKernelType kernel) {
-    SVMClassifier *svm = calloc(1, sizeof(SVMClassifier));
+    SVMClassifier *svm = cml_calloc(1, sizeof(SVMClassifier));
     if (!svm) return NULL;
 
     svm->base.type        = MODEL_SVM;
@@ -8537,14 +8606,14 @@ static Estimator* svm_clf_fit_linear(SVMClassifier *svm, const Matrix *X, const 
     }
     svm->labels_converted = needs_conversion;
 
-    double *labels = malloc(N * sizeof(double));
+    double *labels = cml_malloc(N * sizeof(double));
     if (!labels) return NULL;
     for (size_t i = 0; i < N; i++) {
         labels[i] = needs_conversion ? ((y->data[i] <= 0.5) ? -1.0 : 1.0) : y->data[i];
     }
 
     svm->weights = matrix_alloc(F, 1);
-    if (!svm->weights) { free(labels); return NULL; }
+    if (!svm->weights) { cml_free(labels); return NULL; }
 
     rand_seed(42);
     for (size_t j = 0; j < F; j++)
@@ -8556,8 +8625,8 @@ static Estimator* svm_clf_fit_linear(SVMClassifier *svm, const Matrix *X, const 
     double prev_loss = 1e18;
 
     for (int epoch = 0; epoch < svm->max_iter; epoch++) {
-        size_t *indices = malloc(N * sizeof(size_t));
-        if (!indices) { free(labels); svm_clf_free_params(svm); return NULL; }
+        size_t *indices = cml_malloc(N * sizeof(size_t));
+        if (!indices) { cml_free(labels); svm_clf_free_params(svm); return NULL; }
         for (size_t i = 0; i < N; i++) indices[i] = i;
         shuffle_indices(indices, N);
 
@@ -8583,12 +8652,12 @@ static Estimator* svm_clf_fit_linear(SVMClassifier *svm, const Matrix *X, const 
             w_norm_sq += svm->weights->data[j] * svm->weights->data[j];
         epoch_loss = epoch_loss / (double)N + 0.5 * w_norm_sq;
 
-        free(indices);
+        cml_free(indices);
         if (epoch > 0 && fabs(prev_loss - epoch_loss) < svm->tol) break;
         prev_loss = epoch_loss;
     }
 
-    free(labels);
+    cml_free(labels);
     svm->base.is_fitted = 1;
     return (Estimator*)svm;
 }
@@ -8610,15 +8679,15 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
     }
     svm->labels_converted = needs_conversion;
 
-    double *labels = malloc(N * sizeof(double));
+    double *labels = cml_malloc(N * sizeof(double));
     if (!labels) return NULL;
     for (size_t i = 0; i < N; i++) {
         labels[i] = needs_conversion ? ((y->data[i] <= 0.5) ? -1.0 : 1.0) : y->data[i];
     }
 
     /* Pre-compute kernel matrix K[i][j] = exp(-gamma * ||x_i - x_j||^2) */
-    double *K = calloc(N * N, sizeof(double));
-    if (!K) { free(labels); return NULL; }
+    double *K = cml_calloc(N * N, sizeof(double));
+    if (!K) { cml_free(labels); return NULL; }
 
     for (size_t i = 0; i < N; i++) {
         for (size_t j = i; j < N; j++) {
@@ -8634,8 +8703,8 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
     }
 
     /* Initialize dual variables */
-    double *alphas = calloc(N, sizeof(double));
-    if (!alphas) { free(K); free(labels); return NULL; }
+    double *alphas = cml_calloc(N, sizeof(double));
+    if (!alphas) { cml_free(K); cml_free(labels); return NULL; }
 
     double bias = 0.0;
     double lr = svm->lr;
@@ -8643,8 +8712,8 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
 
     /* SGD on dual problem */
     for (int epoch = 0; epoch < svm->max_iter; epoch++) {
-        size_t *indices = malloc(N * sizeof(size_t));
-        if (!indices) { free(K); free(labels); free(alphas); return NULL; }
+        size_t *indices = cml_malloc(N * sizeof(size_t));
+        if (!indices) { cml_free(K); cml_free(labels); cml_free(alphas); return NULL; }
         for (size_t i = 0; i < N; i++) indices[i] = i;
         shuffle_indices(indices, N);
 
@@ -8673,7 +8742,7 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
                 alphas[i] = new_alpha;
             }
         }
-        free(indices);
+        cml_free(indices);
     }
 
     /* Identify support vectors (alpha > epsilon) */
@@ -8686,13 +8755,13 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
 
     /* Store support vectors, their alphas, and labels */
     svm->support_vectors = matrix_alloc((size_t)sv_count, F);
-    svm->alphas = malloc(sv_count * sizeof(double));
-    svm->labels_train = malloc(sv_count * sizeof(double));
+    svm->alphas = cml_malloc(sv_count * sizeof(double));
+    svm->labels_train = cml_malloc(sv_count * sizeof(double));
     if (!svm->support_vectors || !svm->alphas || !svm->labels_train) {
-        free(K); free(labels); free(alphas);
+        cml_free(K); cml_free(labels); cml_free(alphas);
         if (svm->support_vectors) matrix_free(svm->support_vectors);
-        if (svm->alphas) free(svm->alphas);
-        if (svm->labels_train) free(svm->labels_train);
+        if (svm->alphas) cml_free(svm->alphas);
+        if (svm->labels_train) cml_free(svm->labels_train);
         return NULL;
     }
 
@@ -8710,9 +8779,9 @@ static Estimator* svm_clf_fit_rbf(SVMClassifier *svm, const Matrix *X, const Mat
     svm->n_support = sv_count;
     svm->bias = bias;
 
-    free(K);
-    free(labels);
-    free(alphas);
+    cml_free(K);
+    cml_free(labels);
+    cml_free(alphas);
     svm->base.is_fitted = 1;
     return (Estimator*)svm;
 }
@@ -8833,7 +8902,7 @@ static void svm_clf_free(Estimator *self) {
     SVMClassifier *svm = (SVMClassifier*)self;
     if (svm) {
         svm_clf_free_params(svm);
-        free(svm);
+        cml_free(svm);
     }
 }
 
@@ -8986,11 +9055,11 @@ static Estimator* svm_clf_load(const char *path) {
         svm->support_vectors = cml_ser_read_matrix(f);
         if (!svm->support_vectors) { svm_clf_free((Estimator*)svm); fclose(f); return NULL; }
 
-        svm->alphas = malloc((size_t)n_support * sizeof(double));
+        svm->alphas = cml_malloc((size_t)n_support * sizeof(double));
         if (!svm->alphas) { svm_clf_free((Estimator*)svm); fclose(f); return NULL; }
         if (cml_ser_read_doubles(f, svm->alphas, n_support) != 0) { svm_clf_free((Estimator*)svm); fclose(f); return NULL; }
 
-        svm->labels_train = malloc((size_t)n_support * sizeof(double));
+        svm->labels_train = cml_malloc((size_t)n_support * sizeof(double));
         if (!svm->labels_train) { svm_clf_free((Estimator*)svm); fclose(f); return NULL; }
         if (cml_ser_read_doubles(f, svm->labels_train, n_support) != 0) { svm_clf_free((Estimator*)svm); fclose(f); return NULL; }
 
@@ -9008,10 +9077,6 @@ static Estimator* svm_clf_load(const char *path) {
  * @file naive_bayes.c
  * @brief Gaussian Naive Bayes classifier implementation
  */
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -9041,7 +9106,7 @@ Estimator*  gaussian_nb_load(const char *path);
  * ============================================ */
 
 GaussianNaiveBayes* gaussian_nb_create(void) {
-    GaussianNaiveBayes *nb = calloc(1, sizeof(GaussianNaiveBayes));
+    GaussianNaiveBayes *nb = cml_calloc(1, sizeof(GaussianNaiveBayes));
     if (!nb) return NULL;
 
     nb->base.type        = MODEL_NAIVE_BAYES;
@@ -9080,11 +9145,11 @@ GaussianNaiveBayes* gaussian_nb_create(void) {
 
 static void nb_free_params(GaussianNaiveBayes *nb) {
     if (!nb) return;
-    free(nb->class_priors);
-    free(nb->class_count_);
-    free(nb->class_log_prior_);
-    free(nb->theta_);
-    free(nb->var_);
+    cml_free(nb->class_priors);
+    cml_free(nb->class_count_);
+    cml_free(nb->class_log_prior_);
+    cml_free(nb->theta_);
+    cml_free(nb->var_);
     nb->class_priors      = NULL;
     nb->class_count_      = NULL;
     nb->class_log_prior_  = NULL;
@@ -9130,11 +9195,11 @@ static Estimator* gaussian_nb_fit(Estimator *self, const Matrix *X, const Matrix
     nb->total_samples_ = (int)N;
 
     /* Allocate arrays */
-    nb->class_count_     = calloc(C, sizeof(int));
-    nb->class_priors     = calloc(C, sizeof(double));
-    nb->class_log_prior_ = calloc(C, sizeof(double));
-    nb->theta_           = calloc((size_t)C * F, sizeof(double));
-    nb->var_             = calloc((size_t)C * F, sizeof(double));
+    nb->class_count_     = cml_calloc(C, sizeof(int));
+    nb->class_priors     = cml_calloc(C, sizeof(double));
+    nb->class_log_prior_ = cml_calloc(C, sizeof(double));
+    nb->theta_           = cml_calloc((size_t)C * F, sizeof(double));
+    nb->var_             = cml_calloc((size_t)C * F, sizeof(double));
 
     if (!nb->class_count_ || !nb->class_priors || !nb->class_log_prior_ ||
         !nb->theta_ || !nb->var_) {
@@ -9252,7 +9317,7 @@ static Matrix* gaussian_nb_predict_proba_impl(const Estimator *self, const Matri
     Matrix *proba = matrix_alloc(N, (size_t)C);
     if (!proba) return NULL;
 
-    double *log_post = malloc(sizeof(double) * C);
+    double *log_post = cml_malloc(sizeof(double) * C);
     if (!log_post) {
         matrix_free(proba);
         return NULL;
@@ -9288,7 +9353,7 @@ static Matrix* gaussian_nb_predict_proba_impl(const Estimator *self, const Matri
         }
     }
 
-    free(log_post);
+    cml_free(log_post);
 
     return proba;
 }
@@ -9319,7 +9384,7 @@ static void gaussian_nb_free(Estimator *self) {
     GaussianNaiveBayes *nb = (GaussianNaiveBayes*)self;
     if (nb) {
         nb_free_params(nb);
-        free(nb);
+        cml_free(nb);
     }
 }
 
@@ -9375,11 +9440,11 @@ Estimator* gaussian_nb_load(const char *path) {
     int C = n_classes;
     int F = n_features;
 
-    nb->theta_ = malloc((size_t)(C * F) * sizeof(double));
-    nb->var_   = malloc((size_t)(C * F) * sizeof(double));
-    nb->class_priors     = malloc((size_t)C * sizeof(double));
-    nb->class_log_prior_ = malloc((size_t)C * sizeof(double));
-    nb->class_count_     = malloc((size_t)C * sizeof(int));
+    nb->theta_ = cml_malloc((size_t)(C * F) * sizeof(double));
+    nb->var_   = cml_malloc((size_t)(C * F) * sizeof(double));
+    nb->class_priors     = cml_malloc((size_t)C * sizeof(double));
+    nb->class_log_prior_ = cml_malloc((size_t)C * sizeof(double));
+    nb->class_count_     = cml_malloc((size_t)C * sizeof(int));
 
     if (!nb->theta_ || !nb->var_ || !nb->class_priors || !nb->class_log_prior_ || !nb->class_count_) {
         gaussian_nb_free((Estimator*)nb); fclose(f); return NULL;
@@ -9412,7 +9477,7 @@ int         multinomial_nb_save(const Estimator *self, const char *path);
 Estimator*  multinomial_nb_load(const char *path);
 
 MultinomialNB* multinomial_nb_create(void) {
-    MultinomialNB *nb = calloc(1, sizeof(MultinomialNB));
+    MultinomialNB *nb = cml_calloc(1, sizeof(MultinomialNB));
     if (!nb) return NULL;
 
     nb->base.type        = MODEL_NAIVE_BAYES;
@@ -9474,7 +9539,7 @@ static Estimator* multinomial_nb_fit(Estimator *self, const Matrix *X, const Mat
     nb->n_features = (int)F;
 
     /* Count class occurrences */
-    int *class_count = calloc((size_t)C, sizeof(int));
+    int *class_count = cml_calloc((size_t)C, sizeof(int));
     if (!class_count) return NULL;
 
     for (size_t i = 0; i < N; i++) {
@@ -9485,7 +9550,7 @@ static Estimator* multinomial_nb_fit(Estimator *self, const Matrix *X, const Mat
     /* Compute log prior */
     nb->log_prior = matrix_alloc((size_t)C, 1);
     if (!nb->log_prior) {
-        free(class_count);
+        cml_free(class_count);
         return NULL;
     }
     for (int c = 0; c < C; c++) {
@@ -9495,7 +9560,7 @@ static Estimator* multinomial_nb_fit(Estimator *self, const Matrix *X, const Mat
     /* Compute theta: log P(x_j|c) for each class c and feature j */
     nb->theta = matrix_alloc((size_t)C, F);
     if (!nb->theta) {
-        free(class_count);
+        cml_free(class_count);
         multinomial_nb_free_params(nb);
         return NULL;
     }
@@ -9532,7 +9597,7 @@ static Estimator* multinomial_nb_fit(Estimator *self, const Matrix *X, const Mat
         }
     }
 
-    free(class_count);
+    cml_free(class_count);
     nb->base.is_fitted = 1;
     return self;
 }
@@ -9623,7 +9688,7 @@ static void multinomial_nb_free(Estimator *self) {
     MultinomialNB *nb = (MultinomialNB *)self;
     if (nb) {
         multinomial_nb_free_params(nb);
-        free(nb);
+        cml_free(nb);
     }
 }
 
@@ -9688,10 +9753,6 @@ Estimator* multinomial_nb_load(const char *path) {
  * decision_tree.c - Decision Tree implementation (CART algorithm)
  */
 
-
-
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -9714,7 +9775,7 @@ static double gini_impurity(const double *y, const size_t *indices, size_t n, in
     if (n == 0) return 0.0;
 
     // Count each class
-    int *counts = calloc(n_classes, sizeof(int));
+    int *counts = cml_calloc(n_classes, sizeof(int));
     if (!counts) return 1.0;
 
     for (size_t i = 0; i < n; i++) {
@@ -9731,14 +9792,14 @@ static double gini_impurity(const double *y, const size_t *indices, size_t n, in
         gini -= p * p;
     }
 
-    free(counts);
+    cml_free(counts);
     return gini;
 }
 
 static double entropy_impurity(const double *y, const size_t *indices, size_t n, int n_classes) {
     if (n == 0) return 0.0;
 
-    int *counts = calloc(n_classes, sizeof(int));
+    int *counts = cml_calloc(n_classes, sizeof(int));
     if (!counts) return 0.0;
 
     for (size_t i = 0; i < n; i++) {
@@ -9756,7 +9817,7 @@ static double entropy_impurity(const double *y, const size_t *indices, size_t n,
         }
     }
 
-    free(counts);
+    cml_free(counts);
     return ent;
 }
 
@@ -9781,7 +9842,7 @@ static double mse_impurity(const double *y, const size_t *indices, size_t n) {
 }
 
 static int majority_class(const double *y, const size_t *indices, size_t n, int n_classes) {
-    int *counts = calloc(n_classes, sizeof(int));
+    int *counts = cml_calloc(n_classes, sizeof(int));
     if (!counts) return 0;
 
     for (size_t i = 0; i < n; i++) {
@@ -9800,7 +9861,7 @@ static int majority_class(const double *y, const size_t *indices, size_t n, int 
         }
     }
 
-    free(counts);
+    cml_free(counts);
     return max_class;
 }
 
@@ -9815,12 +9876,12 @@ static double mean_value(const double *y, const size_t *indices, size_t n) {
 }
 
 static double* class_probabilities(const double *y, const size_t *indices, size_t n, int n_classes) {
-    double *proba = calloc(n_classes, sizeof(double));
+    double *proba = cml_calloc(n_classes, sizeof(double));
     if (!proba || n == 0) return proba;
 
-    int *counts = calloc(n_classes, sizeof(int));
+    int *counts = cml_calloc(n_classes, sizeof(int));
     if (!counts) {
-        free(proba);
+        cml_free(proba);
         return NULL;
     }
 
@@ -9835,7 +9896,7 @@ static double* class_probabilities(const double *y, const size_t *indices, size_
         proba[c] = (double)counts[c] / n;
     }
 
-    free(counts);
+    cml_free(counts);
     return proba;
 }
 
@@ -9875,7 +9936,7 @@ static BestSplit find_best_split_classification(
     // Try each feature
     for (size_t feat = 0; feat < X->cols; feat++) {
         // Get unique values and sort
-        double *values = malloc(n * sizeof(double));
+        double *values = cml_malloc(n * sizeof(double));
         for (size_t i = 0; i < n; i++) {
             values[i] = X->data[indices[i] * X->cols + feat];
         }
@@ -9884,12 +9945,12 @@ static BestSplit find_best_split_classification(
         qsort(values, n, sizeof(double), compare_doubles);
 
         // Pre-allocate split buffers outside the threshold loop
-        size_t *left = malloc(n * sizeof(size_t));
-        size_t *right = malloc(n * sizeof(size_t));
+        size_t *left = cml_malloc(n * sizeof(size_t));
+        size_t *right = cml_malloc(n * sizeof(size_t));
         if (!left || !right) {
-            free(values);
-            free(left);
-            free(right);
+            cml_free(values);
+            cml_free(left);
+            cml_free(right);
             continue;
         }
 
@@ -9922,8 +9983,8 @@ static BestSplit find_best_split_classification(
             double impurity_decrease = parent_impurity - weighted_impurity;
 
             if (impurity_decrease > best.impurity_decrease) {
-                free(best.left_indices);
-                free(best.right_indices);
+                cml_free(best.left_indices);
+                cml_free(best.right_indices);
 
                 best.feature_index = feat;
                 best.threshold = threshold;
@@ -9932,16 +9993,16 @@ static BestSplit find_best_split_classification(
                 best.n_right = n_right;
 
                 // Allocate new buffers for best, reuse left/right for next iteration
-                best.left_indices = malloc(n_left * sizeof(size_t));
-                best.right_indices = malloc(n_right * sizeof(size_t));
+                best.left_indices = cml_malloc(n_left * sizeof(size_t));
+                best.right_indices = cml_malloc(n_right * sizeof(size_t));
                 if (best.left_indices) memcpy(best.left_indices, left, n_left * sizeof(size_t));
                 if (best.right_indices) memcpy(best.right_indices, right, n_right * sizeof(size_t));
             }
         }
 
-        free(left);
-        free(right);
-        free(values);
+        cml_free(left);
+        cml_free(right);
+        cml_free(values);
     }
 
     return best;
@@ -9961,7 +10022,7 @@ static TreeNode* build_tree_classification(
     int depth,
     int *n_nodes
 ) {
-    TreeNode *node = calloc(1, sizeof(TreeNode));
+    TreeNode *node = cml_calloc(1, sizeof(TreeNode));
     if (!node) return NULL;
 
     (*n_nodes)++;
@@ -9996,8 +10057,8 @@ static TreeNode* build_tree_classification(
         node->is_leaf = 1;
         node->class_label = majority_class(y, indices, n, n_classes);
         node->class_proba = class_probabilities(y, indices, n, n_classes);
-        free(best.left_indices);
-        free(best.right_indices);
+        cml_free(best.left_indices);
+        cml_free(best.right_indices);
         return node;
     }
 
@@ -10018,8 +10079,8 @@ static TreeNode* build_tree_classification(
         min_impurity_decrease, depth + 1, n_nodes
     );
 
-    free(best.left_indices);
-    free(best.right_indices);
+    cml_free(best.left_indices);
+    cml_free(best.right_indices);
 
     return node;
 }
@@ -10039,7 +10100,7 @@ static BestSplit find_best_split_regression(
     double parent_mse = mse_impurity(y, indices, n);
 
     for (size_t feat = 0; feat < X->cols; feat++) {
-        double *values = malloc(n * sizeof(double));
+        double *values = cml_malloc(n * sizeof(double));
         for (size_t i = 0; i < n; i++) {
             values[i] = X->data[indices[i] * X->cols + feat];
         }
@@ -10048,12 +10109,12 @@ static BestSplit find_best_split_regression(
         qsort(values, n, sizeof(double), compare_doubles);
 
         // Pre-allocate split buffers outside the threshold loop
-        size_t *left = malloc(n * sizeof(size_t));
-        size_t *right = malloc(n * sizeof(size_t));
+        size_t *left = cml_malloc(n * sizeof(size_t));
+        size_t *right = cml_malloc(n * sizeof(size_t));
         if (!left || !right) {
-            free(values);
-            free(left);
-            free(right);
+            cml_free(values);
+            cml_free(left);
+            cml_free(right);
             continue;
         }
 
@@ -10084,8 +10145,8 @@ static BestSplit find_best_split_regression(
             double impurity_decrease = parent_mse - weighted_mse;
 
             if (impurity_decrease > best.impurity_decrease) {
-                free(best.left_indices);
-                free(best.right_indices);
+                cml_free(best.left_indices);
+                cml_free(best.right_indices);
 
                 best.feature_index = feat;
                 best.threshold = threshold;
@@ -10094,16 +10155,16 @@ static BestSplit find_best_split_regression(
                 best.n_right = n_right;
 
                 // Allocate new buffers for best, reuse left/right for next iteration
-                best.left_indices = malloc(n_left * sizeof(size_t));
-                best.right_indices = malloc(n_right * sizeof(size_t));
+                best.left_indices = cml_malloc(n_left * sizeof(size_t));
+                best.right_indices = cml_malloc(n_right * sizeof(size_t));
                 if (best.left_indices) memcpy(best.left_indices, left, n_left * sizeof(size_t));
                 if (best.right_indices) memcpy(best.right_indices, right, n_right * sizeof(size_t));
             }
         }
 
-        free(left);
-        free(right);
-        free(values);
+        cml_free(left);
+        cml_free(right);
+        cml_free(values);
     }
 
     return best;
@@ -10121,7 +10182,7 @@ static TreeNode* build_tree_regression(
     int depth,
     int *n_nodes
 ) {
-    TreeNode *node = calloc(1, sizeof(TreeNode));
+    TreeNode *node = cml_calloc(1, sizeof(TreeNode));
     if (!node) return NULL;
 
     (*n_nodes)++;
@@ -10147,8 +10208,8 @@ static TreeNode* build_tree_regression(
         (int)best.n_right < min_samples_leaf) {
         node->is_leaf = 1;
         node->value = mean_value(y, indices, n);
-        free(best.left_indices);
-        free(best.right_indices);
+        cml_free(best.left_indices);
+        cml_free(best.right_indices);
         return node;
     }
 
@@ -10168,8 +10229,8 @@ static TreeNode* build_tree_regression(
         min_impurity_decrease, depth + 1, n_nodes
     );
 
-    free(best.left_indices);
-    free(best.right_indices);
+    cml_free(best.left_indices);
+    cml_free(best.right_indices);
 
     return node;
 }
@@ -10189,7 +10250,7 @@ DecisionTreeClassifier* decision_tree_classifier_create_full(
     int min_samples_leaf,
     double min_impurity_decrease
 ) {
-    DecisionTreeClassifier *tree = calloc(1, sizeof(DecisionTreeClassifier));
+    DecisionTreeClassifier *tree = cml_calloc(1, sizeof(DecisionTreeClassifier));
     if (!tree) return NULL;
 
     tree->base.type = MODEL_DECISION_TREE;
@@ -10238,7 +10299,7 @@ Estimator* decision_tree_classifier_fit(Estimator *self, const Matrix *X, const 
     tree->n_features = X->cols;
 
     // Create indices
-    size_t *indices = malloc(X->rows * sizeof(size_t));
+    size_t *indices = cml_malloc(X->rows * sizeof(size_t));
     for (size_t i = 0; i < X->rows; i++) {
         indices[i] = i;
     }
@@ -10251,7 +10312,7 @@ Estimator* decision_tree_classifier_fit(Estimator *self, const Matrix *X, const 
         tree->min_samples_leaf, tree->min_impurity_decrease, 0, &tree->n_nodes_
     );
 
-    free(indices);
+    cml_free(indices);
     tree->base.is_fitted = 1;
 
     return self;
@@ -10336,15 +10397,15 @@ void tree_node_free(TreeNode *node) {
     if (!node) return;
     tree_node_free(node->left);
     tree_node_free(node->right);
-    free(node->class_proba);
-    free(node);
+    cml_free(node->class_proba);
+    cml_free(node);
 }
 
 void decision_tree_classifier_free(Estimator *self) {
     DecisionTreeClassifier *tree = (DecisionTreeClassifier*)self;
     if (tree) {
         tree_node_free(tree->root);
-        free(tree);
+        cml_free(tree);
     }
 }
 
@@ -10380,7 +10441,7 @@ DecisionTreeRegressor* decision_tree_regressor_create_full(
     int min_samples_leaf,
     double min_impurity_decrease
 ) {
-    DecisionTreeRegressor *tree = calloc(1, sizeof(DecisionTreeRegressor));
+    DecisionTreeRegressor *tree = cml_calloc(1, sizeof(DecisionTreeRegressor));
     if (!tree) return NULL;
 
     tree->base.type = MODEL_DECISION_TREE;
@@ -10420,7 +10481,7 @@ Estimator* decision_tree_regressor_fit(Estimator *self, const Matrix *X, const M
 
     tree->n_features = X->cols;
 
-    size_t *indices = malloc(X->rows * sizeof(size_t));
+    size_t *indices = cml_malloc(X->rows * sizeof(size_t));
     for (size_t i = 0; i < X->rows; i++) {
         indices[i] = i;
     }
@@ -10432,7 +10493,7 @@ Estimator* decision_tree_regressor_fit(Estimator *self, const Matrix *X, const M
         tree->min_samples_leaf, tree->min_impurity_decrease, 0, &tree->n_nodes_
     );
 
-    free(indices);
+    cml_free(indices);
     tree->base.is_fitted = 1;
 
     return self;
@@ -10484,7 +10545,7 @@ void decision_tree_regressor_free(Estimator *self) {
     DecisionTreeRegressor *tree = (DecisionTreeRegressor*)self;
     if (tree) {
         tree_node_free(tree->root);
-        free(tree);
+        cml_free(tree);
     }
 }
 
@@ -10495,10 +10556,6 @@ void decision_tree_regressor_free(Estimator *self) {
  *
  * Uses iterative method for eigenvector computation - pure C, no LAPACK dependency
  */
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -10659,7 +10716,7 @@ PCA* pca_create(int n_components) {
 }
 
 PCA* pca_create_full(int n_components, int whiten) {
-    PCA *pca = calloc(1, sizeof(PCA));
+    PCA *pca = cml_calloc(1, sizeof(PCA));
     if (!pca) return NULL;
 
     pca->base.type = MODEL_PCA;
@@ -10724,7 +10781,7 @@ Estimator* pca_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     }
 
     // Eigendecomposition
-    pca->explained_variance_ = malloc(n_comp * sizeof(double));
+    pca->explained_variance_ = cml_malloc(n_comp * sizeof(double));
     if (eigen_decomposition(cov, &pca->components_, pca->explained_variance_, n_comp) != 0) {
         matrix_free(cov);
         return NULL;
@@ -10733,8 +10790,8 @@ Estimator* pca_fit(Estimator *self, const Matrix *X, const Matrix *y) {
     matrix_free(cov);
 
     // Compute explained variance ratio
-    pca->explained_variance_ratio_ = malloc(n_comp * sizeof(double));
-    pca->singular_values_ = malloc(n_comp * sizeof(double));
+    pca->explained_variance_ratio_ = cml_malloc(n_comp * sizeof(double));
+    pca->singular_values_ = cml_malloc(n_comp * sizeof(double));
 
     for (int k = 0; k < n_comp; k++) {
         pca->explained_variance_ratio_[k] = pca->explained_variance_[k] / pca->total_variance_;
@@ -10842,10 +10899,10 @@ void pca_free(Estimator *self) {
 
     matrix_free(pca->components_);
     matrix_free(pca->mean_);
-    free(pca->explained_variance_);
-    free(pca->explained_variance_ratio_);
-    free(pca->singular_values_);
-    free(pca);
+    cml_free(pca->explained_variance_);
+    cml_free(pca->explained_variance_ratio_);
+    cml_free(pca->singular_values_);
+    cml_free(pca);
 }
 
 void pca_print_summary(const Estimator *self) {
@@ -10880,9 +10937,6 @@ void pca_print_summary(const Estimator *self) {
  * Implements feedforward neural network with backpropagation
  */
 
-
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10893,7 +10947,7 @@ void pca_print_summary(const Estimator *self) {
  * Activation Functions
  * ============================================ */
 
-static double nn_sigmoid(double x) {
+static double neural_network_sigmoid(double x) {
     if (x > 500) return 1.0;
     if (x < -500) return 0.0;
     return 1.0 / (1.0 + exp(-x));
@@ -10910,7 +10964,7 @@ Matrix* activation_forward(const Matrix *z, ActivationType type) {
 
         case ACTIVATION_SIGMOID:
             for (size_t i = 0; i < z->rows * z->cols; i++) {
-                a->data[i] = nn_sigmoid(z->data[i]);
+                a->data[i] = neural_network_sigmoid(z->data[i]);
             }
             break;
 
@@ -10973,7 +11027,7 @@ Matrix* activation_derivative(const Matrix *z, const Matrix *a, ActivationType t
             break;
 
         case ACTIVATION_SIGMOID:
-            // nn_sigmoid'(x) = nn_sigmoid(x) * (1 - nn_sigmoid(x))
+            // neural_network_sigmoid'(x) = neural_network_sigmoid(x) * (1 - neural_network_sigmoid(x))
             for (size_t i = 0; i < z->rows * z->cols; i++) {
                 d->data[i] = a->data[i] * (1.0 - a->data[i]);
             }
@@ -11014,7 +11068,7 @@ Matrix* activation_derivative(const Matrix *z, const Matrix *a, ActivationType t
  * ============================================ */
 
 Layer* layer_create(int n_input, int n_output, ActivationType activation) {
-    Layer *layer = calloc(1, sizeof(Layer));
+    Layer *layer = cml_calloc(1, sizeof(Layer));
     if (!layer) return NULL;
 
     layer->weights = matrix_alloc(n_input, n_output);
@@ -11055,7 +11109,7 @@ void layer_free(Layer *layer) {
     matrix_free(layer->input_cache);
     matrix_free(layer->output_cache);
     matrix_free(layer->z_cache);
-    free(layer);
+    cml_free(layer);
 }
 
 /* ============================================
@@ -11088,13 +11142,13 @@ NeuralNetwork* neural_network_create_full(
     double momentum,
     double l2_reg
 ) {
-    NeuralNetwork *nn = calloc(1, sizeof(NeuralNetwork));
+    NeuralNetwork *nn = cml_calloc(1, sizeof(NeuralNetwork));
     if (!nn) return NULL;
 
     // Store hidden layer sizes
-    nn->layer_sizes = malloc((n_hidden + 2) * sizeof(int));  // +2 for input/output
+    nn->layer_sizes = cml_malloc((n_hidden + 2) * sizeof(int));  // +2 for input/output
     if (!nn->layer_sizes) {
-        free(nn);
+        cml_free(nn);
         return NULL;
     }
     for (int i = 0; i < n_hidden; i++) {
@@ -11155,7 +11209,7 @@ void neural_network_init(NeuralNetwork *nn, int n_features, int n_outputs) {
 
     // Create layers
     nn->n_layers = nn->n_layer_sizes - 1;
-    nn->layers = malloc(nn->n_layers * sizeof(Layer*));
+    nn->layers = cml_malloc(nn->n_layers * sizeof(Layer*));
     if (!nn->layers) return;
 
     /* RNG seeded by caller or auto-seeded on first use */
@@ -11245,7 +11299,7 @@ void neural_network_backward(NeuralNetwork *nn, const Matrix *y) {
     // Compute output error (delta)
     Matrix *delta = matrix_alloc(output->rows, output->cols);
 
-    // For softmax + cross-entropy or nn_sigmoid + BCE: delta = output - y
+    // For softmax + cross-entropy or neural_network_sigmoid + BCE: delta = output - y
     for (size_t i = 0; i < output->rows * output->cols; i++) {
         delta->data[i] = output->data[i] - y->data[i];
     }
@@ -11424,7 +11478,7 @@ Estimator* neural_network_fit(Estimator *self, const Matrix *X, const Matrix *y)
         double epoch_loss = 0.0;
 
         // Shuffle indices
-        size_t *indices = malloc(n_samples * sizeof(size_t));
+        size_t *indices = cml_malloc(n_samples * sizeof(size_t));
         for (size_t i = 0; i < n_samples; i++) indices[i] = i;
         shuffle_indices(indices, n_samples);
 
@@ -11484,7 +11538,7 @@ Estimator* neural_network_fit(Estimator *self, const Matrix *X, const Matrix *y)
             matrix_free(output);
         }
 
-        free(indices);
+        cml_free(indices);
         epoch_loss /= n_batches;
 
         // Compute accuracy/R² for history
@@ -11578,7 +11632,7 @@ double neural_network_score(const Estimator *self, const Matrix *X, const Matrix
 Estimator* neural_network_clone(const Estimator *self) {
     const NeuralNetwork *nn = (const NeuralNetwork*)self;
 
-    int *hidden_sizes = malloc((nn->n_layer_sizes - 2) * sizeof(int));
+    int *hidden_sizes = cml_malloc((nn->n_layer_sizes - 2) * sizeof(int));
     for (int i = 1; i < nn->n_layer_sizes - 1; i++) {
         hidden_sizes[i - 1] = nn->layer_sizes[i];
     }
@@ -11591,7 +11645,7 @@ Estimator* neural_network_clone(const Estimator *self) {
         nn->momentum, nn->l2_reg
     );
 
-    free(hidden_sizes);
+    cml_free(hidden_sizes);
     return (Estimator*)clone;
 }
 
@@ -11602,10 +11656,10 @@ void neural_network_free(Estimator *self) {
     for (int i = 0; i < nn->n_layers; i++) {
         layer_free(nn->layers[i]);
     }
-    free(nn->layers);
-    free(nn->layer_sizes);
+    cml_free(nn->layers);
+    cml_free(nn->layer_sizes);
     training_history_free(nn->base.history);
-    free(nn);
+    cml_free(nn);
 }
 
 void neural_network_print_summary(const Estimator *self) {
@@ -11673,9 +11727,6 @@ MLPRegressor* mlp_regressor_create(const int *hidden_layer_sizes, int n_hidden) 
  * validation.c - Cross-validation implementation
  */
 
-
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -11731,7 +11782,7 @@ static double array_std(const double *arr, int n) {
 KFold* kfold_create(int n_splits, int shuffle, unsigned int seed) {
     if (n_splits < 2) return NULL;
 
-    KFold *kf = calloc(1, sizeof(KFold));
+    KFold *kf = cml_calloc(1, sizeof(KFold));
     if (!kf) return NULL;
 
     kf->n_splits = n_splits;
@@ -11750,10 +11801,10 @@ void kfold_init(KFold *kf, size_t n_samples) {
     kf->n_samples = n_samples;
 
     // Free old indices if any
-    free(kf->indices);
+    cml_free(kf->indices);
 
     // Allocate indices
-    kf->indices = malloc(n_samples * sizeof(size_t));
+    kf->indices = cml_malloc(n_samples * sizeof(size_t));
     if (!kf->indices) return;
 
     // Initialize indices
@@ -11788,12 +11839,12 @@ FoldIndices kfold_get_fold(const KFold *kf, int fold) {
     size_t n_train = n - n_test;
 
     // Allocate arrays
-    fi.test_indices = malloc(n_test * sizeof(size_t));
-    fi.train_indices = malloc(n_train * sizeof(size_t));
+    fi.test_indices = cml_malloc(n_test * sizeof(size_t));
+    fi.train_indices = cml_malloc(n_train * sizeof(size_t));
 
     if (!fi.test_indices || !fi.train_indices) {
-        free(fi.test_indices);
-        free(fi.train_indices);
+        cml_free(fi.test_indices);
+        cml_free(fi.train_indices);
         fi.test_indices = NULL;
         fi.train_indices = NULL;
         return fi;
@@ -11820,8 +11871,8 @@ FoldIndices kfold_get_fold(const KFold *kf, int fold) {
 
 void fold_indices_free(FoldIndices *fi) {
     if (fi) {
-        free(fi->train_indices);
-        free(fi->test_indices);
+        cml_free(fi->train_indices);
+        cml_free(fi->test_indices);
         fi->train_indices = NULL;
         fi->test_indices = NULL;
         fi->n_train = 0;
@@ -11831,8 +11882,8 @@ void fold_indices_free(FoldIndices *fi) {
 
 void kfold_free(KFold *kf) {
     if (kf) {
-        free(kf->indices);
-        free(kf);
+        cml_free(kf->indices);
+        cml_free(kf);
     }
 }
 
@@ -11843,7 +11894,7 @@ void kfold_free(KFold *kf) {
 StratifiedKFold* stratified_kfold_create(int n_splits, int shuffle, unsigned int seed) {
     if (n_splits < 2) return NULL;
 
-    StratifiedKFold *skf = calloc(1, sizeof(StratifiedKFold));
+    StratifiedKFold *skf = cml_calloc(1, sizeof(StratifiedKFold));
     if (!skf) return NULL;
 
     skf->n_splits = n_splits;
@@ -11872,7 +11923,7 @@ void stratified_kfold_init(StratifiedKFold *skf, const Matrix *y) {
     skf->n_classes = max_class + 1;
 
     // Count samples per class
-    size_t *class_counts = calloc(skf->n_classes, sizeof(size_t));
+    size_t *class_counts = cml_calloc(skf->n_classes, sizeof(size_t));
     if (!class_counts) return;
 
     for (size_t i = 0; i < y->rows; i++) {
@@ -11881,23 +11932,23 @@ void stratified_kfold_init(StratifiedKFold *skf, const Matrix *y) {
     }
 
     // Create indices array grouped by class
-    size_t **class_indices = malloc(skf->n_classes * sizeof(size_t*));
-    size_t *class_positions = calloc(skf->n_classes, sizeof(size_t));
+    size_t **class_indices = cml_malloc(skf->n_classes * sizeof(size_t*));
+    size_t *class_positions = cml_calloc(skf->n_classes, sizeof(size_t));
 
     if (!class_indices || !class_positions) {
-        free(class_counts);
-        free(class_indices);
-        free(class_positions);
+        cml_free(class_counts);
+        cml_free(class_indices);
+        cml_free(class_positions);
         return;
     }
 
     for (int c = 0; c < skf->n_classes; c++) {
-        class_indices[c] = malloc(class_counts[c] * sizeof(size_t));
+        class_indices[c] = cml_malloc(class_counts[c] * sizeof(size_t));
         if (!class_indices[c]) {
-            for (int j = 0; j < c; j++) free(class_indices[j]);
-            free(class_indices);
-            free(class_counts);
-            free(class_positions);
+            for (int j = 0; j < c; j++) cml_free(class_indices[j]);
+            cml_free(class_indices);
+            cml_free(class_counts);
+            cml_free(class_positions);
             return;
         }
     }
@@ -11917,13 +11968,13 @@ void stratified_kfold_init(StratifiedKFold *skf, const Matrix *y) {
     }
 
     // Interleave indices from each class
-    free(skf->indices);
-    skf->indices = malloc(skf->n_samples * sizeof(size_t));
+    cml_free(skf->indices);
+    skf->indices = cml_malloc(skf->n_samples * sizeof(size_t));
     if (!skf->indices) {
-        for (int c = 0; c < skf->n_classes; c++) free(class_indices[c]);
-        free(class_indices);
-        free(class_counts);
-        free(class_positions);
+        for (int c = 0; c < skf->n_classes; c++) cml_free(class_indices[c]);
+        cml_free(class_indices);
+        cml_free(class_counts);
+        cml_free(class_positions);
         return;
     }
 
@@ -11943,10 +11994,10 @@ void stratified_kfold_init(StratifiedKFold *skf, const Matrix *y) {
     }
 
     // Cleanup
-    for (int c = 0; c < skf->n_classes; c++) free(class_indices[c]);
-    free(class_indices);
-    free(class_counts);
-    free(class_positions);
+    for (int c = 0; c < skf->n_classes; c++) cml_free(class_indices[c]);
+    cml_free(class_indices);
+    cml_free(class_counts);
+    cml_free(class_positions);
 }
 
 FoldIndices stratified_kfold_get_fold(const StratifiedKFold *skf, int fold) {
@@ -11968,12 +12019,12 @@ FoldIndices stratified_kfold_get_fold(const StratifiedKFold *skf, int fold) {
     size_t n_test = test_end - test_start;
     size_t n_train = n - n_test;
 
-    fi.test_indices = malloc(n_test * sizeof(size_t));
-    fi.train_indices = malloc(n_train * sizeof(size_t));
+    fi.test_indices = cml_malloc(n_test * sizeof(size_t));
+    fi.train_indices = cml_malloc(n_train * sizeof(size_t));
 
     if (!fi.test_indices || !fi.train_indices) {
-        free(fi.test_indices);
-        free(fi.train_indices);
+        cml_free(fi.test_indices);
+        cml_free(fi.train_indices);
         fi.test_indices = NULL;
         fi.train_indices = NULL;
         return fi;
@@ -11998,8 +12049,8 @@ FoldIndices stratified_kfold_get_fold(const StratifiedKFold *skf, int fold) {
 
 void stratified_kfold_free(StratifiedKFold *skf) {
     if (skf) {
-        free(skf->indices);
-        free(skf);
+        cml_free(skf->indices);
+        cml_free(skf);
     }
 }
 
@@ -12017,14 +12068,14 @@ CrossValResults* cross_val_score(
 ) {
     if (!estimator || !X || !y || n_splits < 2) return NULL;
 
-    CrossValResults *results = calloc(1, sizeof(CrossValResults));
+    CrossValResults *results = cml_calloc(1, sizeof(CrossValResults));
     if (!results) return NULL;
 
     results->n_splits = n_splits;
-    results->test_scores = malloc(n_splits * sizeof(double));
-    results->train_scores = malloc(n_splits * sizeof(double));
-    results->fit_times = malloc(n_splits * sizeof(double));
-    results->score_times = malloc(n_splits * sizeof(double));
+    results->test_scores = cml_malloc(n_splits * sizeof(double));
+    results->train_scores = cml_malloc(n_splits * sizeof(double));
+    results->fit_times = cml_malloc(n_splits * sizeof(double));
+    results->score_times = cml_malloc(n_splits * sizeof(double));
 
     if (!results->test_scores || !results->train_scores ||
         !results->fit_times || !results->score_times) {
@@ -12117,14 +12168,14 @@ CrossValResults* cross_val_score_stratified(
 ) {
     if (!estimator || !X || !y || n_splits < 2) return NULL;
 
-    CrossValResults *results = calloc(1, sizeof(CrossValResults));
+    CrossValResults *results = cml_calloc(1, sizeof(CrossValResults));
     if (!results) return NULL;
 
     results->n_splits = n_splits;
-    results->test_scores = malloc(n_splits * sizeof(double));
-    results->train_scores = malloc(n_splits * sizeof(double));
-    results->fit_times = malloc(n_splits * sizeof(double));
-    results->score_times = malloc(n_splits * sizeof(double));
+    results->test_scores = cml_malloc(n_splits * sizeof(double));
+    results->train_scores = cml_malloc(n_splits * sizeof(double));
+    results->fit_times = cml_malloc(n_splits * sizeof(double));
+    results->score_times = cml_malloc(n_splits * sizeof(double));
 
     if (!results->test_scores || !results->train_scores ||
         !results->fit_times || !results->score_times) {
@@ -12228,11 +12279,11 @@ void cross_val_results_print(const CrossValResults *results) {
 
 void cross_val_results_free(CrossValResults *results) {
     if (results) {
-        free(results->test_scores);
-        free(results->train_scores);
-        free(results->fit_times);
-        free(results->score_times);
-        free(results);
+        cml_free(results->test_scores);
+        cml_free(results->train_scores);
+        cml_free(results->fit_times);
+        cml_free(results->score_times);
+        cml_free(results);
     }
 }
 
@@ -12253,8 +12304,6 @@ CrossValResults* leave_one_out_cv(
 /**
  * feature_selection.c - Feature Selection Utilities
  */
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12340,7 +12389,7 @@ int f_classif(const Matrix *X, const Matrix *y, double *f_values, double *p_valu
     }
 
     // Count samples per class
-    size_t *class_counts = calloc(n_classes, sizeof(size_t));
+    size_t *class_counts = cml_calloc(n_classes, sizeof(size_t));
     for (size_t i = 0; i < n_samples; i++) {
         class_counts[(int)y->data[i]]++;
     }
@@ -12354,7 +12403,7 @@ int f_classif(const Matrix *X, const Matrix *y, double *f_values, double *p_valu
         grand_mean /= n_samples;
 
         // Compute class means
-        double *class_means = calloc(n_classes, sizeof(double));
+        double *class_means = cml_calloc(n_classes, sizeof(double));
         for (size_t i = 0; i < n_samples; i++) {
             int label = (int)y->data[i];
             class_means[label] += X->data[i * n_features + j];
@@ -12380,7 +12429,7 @@ int f_classif(const Matrix *X, const Matrix *y, double *f_values, double *p_valu
             ss_within += diff * diff;
         }
 
-        free(class_means);
+        cml_free(class_means);
 
         // F-statistic = (SSB / df_between) / (SSW / df_within)
         int df_between = n_classes - 1;
@@ -12400,7 +12449,7 @@ int f_classif(const Matrix *X, const Matrix *y, double *f_values, double *p_valu
         }
     }
 
-    free(class_counts);
+    cml_free(class_counts);
     return 0;
 }
 
@@ -12473,14 +12522,14 @@ int chi2(const Matrix *X, const Matrix *y, double *chi2_values, double *p_values
     }
 
     // Sum per class
-    double *class_sums = calloc(n_classes, sizeof(double));
+    double *class_sums = cml_calloc(n_classes, sizeof(double));
     double total_sum = 0.0;
 
     for (size_t i = 0; i < n_samples; i++) {
         for (size_t j = 0; j < n_features; j++) {
             double val = X->data[i * n_features + j];
             if (val < 0) {
-                free(class_sums);
+                cml_free(class_sums);
                 return -1;  // Chi2 requires non-negative features
             }
             class_sums[(int)y->data[i]] += val;
@@ -12521,7 +12570,7 @@ int chi2(const Matrix *X, const Matrix *y, double *chi2_values, double *p_values
         if (p_values) p_values[j] = 0.0;
     }
 
-    free(class_sums);
+    cml_free(class_sums);
     return 0;
 }
 
@@ -12539,7 +12588,7 @@ int mutual_info_classif(const Matrix *X, const Matrix *y, double *mi_values, int
     }
 
     // Class probabilities
-    double *p_y = calloc(n_classes, sizeof(double));
+    double *p_y = cml_calloc(n_classes, sizeof(double));
     for (size_t i = 0; i < n_samples; i++) {
         p_y[(int)y->data[i]] += 1.0 / n_samples;
     }
@@ -12558,8 +12607,8 @@ int mutual_info_classif(const Matrix *X, const Matrix *y, double *mi_values, int
         if (bin_width < 1e-10) bin_width = 1.0;
 
         // Bin counts: p(x), p(x,y)
-        double *p_x = calloc(n_bins, sizeof(double));
-        double *p_xy = calloc(n_bins * n_classes, sizeof(double));
+        double *p_x = cml_calloc(n_bins, sizeof(double));
+        double *p_xy = cml_calloc(n_bins * n_classes, sizeof(double));
 
         for (size_t i = 0; i < n_samples; i++) {
             double val = X->data[i * n_features + j];
@@ -12588,11 +12637,11 @@ int mutual_info_classif(const Matrix *X, const Matrix *y, double *mi_values, int
 
         mi_values[j] = mi > 0 ? mi : 0.0;
 
-        free(p_x);
-        free(p_xy);
+        cml_free(p_x);
+        cml_free(p_xy);
     }
 
-    free(p_y);
+    cml_free(p_y);
     return 0;
 }
 
@@ -12613,8 +12662,8 @@ int mutual_info_regression(const Matrix *X, const Matrix *y, double *mi_values, 
     if (y_bin_width < 1e-10) y_bin_width = 1.0;
 
     // Bin y values
-    int *y_bins = malloc(n_samples * sizeof(int));
-    double *p_y = calloc(n_bins, sizeof(double));
+    int *y_bins = cml_malloc(n_samples * sizeof(int));
+    double *p_y = cml_calloc(n_bins, sizeof(double));
     for (size_t i = 0; i < n_samples; i++) {
         int bin = (int)((y->data[i] - y_min) / y_bin_width);
         if (bin >= n_bins) bin = n_bins - 1;
@@ -12636,8 +12685,8 @@ int mutual_info_regression(const Matrix *X, const Matrix *y, double *mi_values, 
         double bin_width = (x_max - x_min) / n_bins;
         if (bin_width < 1e-10) bin_width = 1.0;
 
-        double *p_x = calloc(n_bins, sizeof(double));
-        double *p_xy = calloc(n_bins * n_bins, sizeof(double));
+        double *p_x = cml_calloc(n_bins, sizeof(double));
+        double *p_xy = cml_calloc(n_bins * n_bins, sizeof(double));
 
         for (size_t i = 0; i < n_samples; i++) {
             double val = X->data[i * n_features + j];
@@ -12665,12 +12714,12 @@ int mutual_info_regression(const Matrix *X, const Matrix *y, double *mi_values, 
 
         mi_values[j] = mi > 0 ? mi : 0.0;
 
-        free(p_x);
-        free(p_xy);
+        cml_free(p_x);
+        cml_free(p_xy);
     }
 
-    free(y_bins);
-    free(p_y);
+    cml_free(y_bins);
+    cml_free(p_y);
     return 0;
 }
 
@@ -12679,7 +12728,7 @@ int mutual_info_regression(const Matrix *X, const Matrix *y, double *mi_values, 
  * ============================================ */
 
 SelectKBest* select_k_best_create(ScoreFunction score_func, int k) {
-    SelectKBest *skb = calloc(1, sizeof(SelectKBest));
+    SelectKBest *skb = cml_calloc(1, sizeof(SelectKBest));
     if (!skb) return NULL;
 
     skb->base.type = MODEL_FEATURE_SELECTOR;
@@ -12718,9 +12767,9 @@ Estimator* select_k_best_fit(Estimator *self, const Matrix *X, const Matrix *y) 
     skb->n_features_selected_ = k;
 
     // Allocate
-    skb->scores_ = malloc(X->cols * sizeof(double));
-    skb->pvalues_ = malloc(X->cols * sizeof(double));
-    skb->support_ = calloc(X->cols, sizeof(int));
+    skb->scores_ = cml_malloc(X->cols * sizeof(double));
+    skb->pvalues_ = cml_malloc(X->cols * sizeof(double));
+    skb->support_ = cml_calloc(X->cols, sizeof(int));
 
     // Compute scores
     switch (skb->score_func) {
@@ -12742,8 +12791,8 @@ Estimator* select_k_best_fit(Estimator *self, const Matrix *X, const Matrix *y) 
     }
 
     // Select top k features
-    double *scores_copy = malloc(X->cols * sizeof(double));
-    size_t *indices = malloc(X->cols * sizeof(size_t));
+    double *scores_copy = cml_malloc(X->cols * sizeof(double));
+    size_t *indices = cml_malloc(X->cols * sizeof(size_t));
     for (size_t j = 0; j < X->cols; j++) {
         scores_copy[j] = skb->scores_[j];
         indices[j] = j;
@@ -12756,8 +12805,8 @@ Estimator* select_k_best_fit(Estimator *self, const Matrix *X, const Matrix *y) 
         skb->support_[indices[i]] = 1;
     }
 
-    free(scores_copy);
-    free(indices);
+    cml_free(scores_copy);
+    cml_free(indices);
 
     skb->base.is_fitted = 1;
 
@@ -12807,10 +12856,10 @@ void select_k_best_free(Estimator *self) {
     SelectKBest *skb = (SelectKBest*)self;
     if (!skb) return;
 
-    free(skb->scores_);
-    free(skb->pvalues_);
-    free(skb->support_);
-    free(skb);
+    cml_free(skb->scores_);
+    cml_free(skb->pvalues_);
+    cml_free(skb->support_);
+    cml_free(skb);
 }
 
 void select_k_best_print_summary(const Estimator *self) {
@@ -12845,7 +12894,7 @@ void select_k_best_print_summary(const Estimator *self) {
  * ============================================ */
 
 VarianceThreshold* variance_threshold_create(double threshold) {
-    VarianceThreshold *vt = calloc(1, sizeof(VarianceThreshold));
+    VarianceThreshold *vt = cml_calloc(1, sizeof(VarianceThreshold));
     if (!vt) return NULL;
 
     vt->base.type = MODEL_FEATURE_SELECTOR;
@@ -12876,8 +12925,8 @@ Estimator* variance_threshold_fit(Estimator *self, const Matrix *X, const Matrix
     VarianceThreshold *vt = (VarianceThreshold*)self;
 
     vt->n_features_ = X->cols;
-    vt->variances_ = malloc(X->cols * sizeof(double));
-    vt->support_ = calloc(X->cols, sizeof(int));
+    vt->variances_ = cml_malloc(X->cols * sizeof(double));
+    vt->support_ = cml_calloc(X->cols, sizeof(int));
     vt->n_features_selected_ = 0;
 
     for (size_t j = 0; j < X->cols; j++) {
@@ -12953,9 +13002,9 @@ void variance_threshold_free(Estimator *self) {
     VarianceThreshold *vt = (VarianceThreshold*)self;
     if (!vt) return;
 
-    free(vt->variances_);
-    free(vt->support_);
-    free(vt);
+    cml_free(vt->variances_);
+    cml_free(vt->support_);
+    cml_free(vt);
 }
 
 /* ============================================
@@ -12985,10 +13034,6 @@ int get_feature_importances(const Estimator *estimator, double *importances) {
 /**
  * ensemble.c - Random Forest implementation
  */
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13032,7 +13077,7 @@ RandomForestClassifier* random_forest_classifier_create_full(
     int bootstrap,
     unsigned int seed
 ) {
-    RandomForestClassifier *rf = calloc(1, sizeof(RandomForestClassifier));
+    RandomForestClassifier *rf = cml_calloc(1, sizeof(RandomForestClassifier));
     if (!rf) return NULL;
 
     rf->base.type = MODEL_RANDOM_FOREST;
@@ -13089,12 +13134,12 @@ Estimator* random_forest_classifier_fit(Estimator *self, const Matrix *X, const 
     }
 
     // Allocate trees
-    rf->trees = malloc(rf->n_estimators * sizeof(DecisionTreeClassifier*));
+    rf->trees = cml_malloc(rf->n_estimators * sizeof(DecisionTreeClassifier*));
     if (!rf->trees) return NULL;
 
     // OOB predictions for score calculation
-    int *oob_counts = calloc(n_samples, sizeof(int));
-    int *oob_predictions = calloc(n_samples * rf->n_classes, sizeof(int));
+    int *oob_counts = cml_calloc(n_samples, sizeof(int));
+    int *oob_predictions = cml_calloc(n_samples * rf->n_classes, sizeof(int));
 
     if (rf->base.verbose >= VERBOSE_MINIMAL) {
         printf("Fitting %d trees...\n", rf->n_estimators);
@@ -13102,8 +13147,8 @@ Estimator* random_forest_classifier_fit(Estimator *self, const Matrix *X, const 
 
     for (int t = 0; t < rf->n_estimators; t++) {
         // Bootstrap sample
-        size_t *indices = malloc(n_samples * sizeof(size_t));
-        size_t *oob_mask = malloc(n_samples * sizeof(size_t));
+        size_t *indices = cml_malloc(n_samples * sizeof(size_t));
+        size_t *oob_mask = cml_malloc(n_samples * sizeof(size_t));
 
         if (rf->bootstrap) {
             bootstrap_sample(n_samples, indices, oob_mask, rf->seed + t);
@@ -13153,8 +13198,8 @@ Estimator* random_forest_classifier_fit(Estimator *self, const Matrix *X, const 
 
         matrix_free(X_boot);
         matrix_free(y_boot);
-        free(indices);
-        free(oob_mask);
+        cml_free(indices);
+        cml_free(oob_mask);
 
         if (rf->base.verbose >= VERBOSE_PROGRESS && (t + 1) % 10 == 0) {
             printf("  [%d/%d] trees fitted\n", t + 1, rf->n_estimators);
@@ -13184,8 +13229,8 @@ Estimator* random_forest_classifier_fit(Estimator *self, const Matrix *X, const 
         rf->oob_score_ = total > 0 ? (double)correct / total : 0.0;
     }
 
-    free(oob_counts);
-    free(oob_predictions);
+    cml_free(oob_counts);
+    cml_free(oob_predictions);
 
     rf->base.is_fitted = 1;
 
@@ -13210,7 +13255,7 @@ Matrix* random_forest_classifier_predict(const Estimator *self, const Matrix *X)
     if (!predictions) return NULL;
 
     // Voting matrix
-    int *votes = calloc(X->rows * rf->n_classes, sizeof(int));
+    int *votes = cml_calloc(X->rows * rf->n_classes, sizeof(int));
 
     for (int t = 0; t < rf->n_estimators; t++) {
         Matrix *tree_pred = rf->trees[t]->base.predict((Estimator*)rf->trees[t], X);
@@ -13238,7 +13283,7 @@ Matrix* random_forest_classifier_predict(const Estimator *self, const Matrix *X)
         predictions->data[i] = best_class;
     }
 
-    free(votes);
+    cml_free(votes);
     return predictions;
 }
 
@@ -13291,9 +13336,9 @@ void random_forest_classifier_free(Estimator *self) {
                 rf->trees[t]->base.free((Estimator*)rf->trees[t]);
             }
         }
-        free(rf->trees);
+        cml_free(rf->trees);
     }
-    free(rf);
+    cml_free(rf);
 }
 
 void random_forest_classifier_print_summary(const Estimator *self) {
@@ -13333,7 +13378,7 @@ RandomForestRegressor* random_forest_regressor_create_full(
     int bootstrap,
     unsigned int seed
 ) {
-    RandomForestRegressor *rf = calloc(1, sizeof(RandomForestRegressor));
+    RandomForestRegressor *rf = cml_calloc(1, sizeof(RandomForestRegressor));
     if (!rf) return NULL;
 
     rf->base.type = MODEL_RANDOM_FOREST;
@@ -13377,12 +13422,12 @@ Estimator* random_forest_regressor_fit(Estimator *self, const Matrix *X, const M
         max_feat = rf->n_features;  // Use all features for regression
     }
 
-    rf->trees = malloc(rf->n_estimators * sizeof(DecisionTreeRegressor*));
+    rf->trees = cml_malloc(rf->n_estimators * sizeof(DecisionTreeRegressor*));
     if (!rf->trees) return NULL;
 
     for (int t = 0; t < rf->n_estimators; t++) {
-        size_t *indices = malloc(n_samples * sizeof(size_t));
-        size_t *oob_mask = malloc(n_samples * sizeof(size_t));
+        size_t *indices = cml_malloc(n_samples * sizeof(size_t));
+        size_t *oob_mask = cml_malloc(n_samples * sizeof(size_t));
 
         if (rf->bootstrap) {
             bootstrap_sample(n_samples, indices, oob_mask, rf->seed + t);
@@ -13408,8 +13453,8 @@ Estimator* random_forest_regressor_fit(Estimator *self, const Matrix *X, const M
 
         matrix_free(X_boot);
         matrix_free(y_boot);
-        free(indices);
-        free(oob_mask);
+        cml_free(indices);
+        cml_free(oob_mask);
     }
 
     rf->base.is_fitted = 1;
@@ -13465,9 +13510,9 @@ void random_forest_regressor_free(Estimator *self) {
                 rf->trees[t]->base.free((Estimator*)rf->trees[t]);
             }
         }
-        free(rf->trees);
+        cml_free(rf->trees);
     }
-    free(rf);
+    cml_free(rf);
 }
 
 
@@ -13475,11 +13520,6 @@ void random_forest_regressor_free(Estimator *self) {
 /**
  * model_selection.c - GridSearchCV and learning curves implementation
  */
-
-
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13492,12 +13532,12 @@ void random_forest_regressor_free(Estimator *self) {
  * ============================================ */
 
 ParameterGrid* param_grid_create(int n_params) {
-    ParameterGrid *grid = calloc(1, sizeof(ParameterGrid));
+    ParameterGrid *grid = cml_calloc(1, sizeof(ParameterGrid));
     if (!grid) return NULL;
 
-    grid->params = calloc(n_params, sizeof(ParamSpec));
+    grid->params = cml_calloc(n_params, sizeof(ParamSpec));
     if (!grid->params) {
-        free(grid);
+        cml_free(grid);
         return NULL;
     }
     grid->n_params = n_params;
@@ -13512,7 +13552,7 @@ int param_grid_add_int(ParameterGrid *grid, int index, const char *name,
     ParamSpec *spec = &grid->params[index];
     spec->name = name;
     spec->type = PARAM_INT;
-    spec->data.int_vals.values = malloc(n_values * sizeof(int));
+    spec->data.int_vals.values = cml_malloc(n_values * sizeof(int));
     if (!spec->data.int_vals.values) return -1;
 
     memcpy(spec->data.int_vals.values, values, n_values * sizeof(int));
@@ -13528,7 +13568,7 @@ int param_grid_add_double(ParameterGrid *grid, int index, const char *name,
     ParamSpec *spec = &grid->params[index];
     spec->name = name;
     spec->type = PARAM_DOUBLE;
-    spec->data.double_vals.values = malloc(n_values * sizeof(double));
+    spec->data.double_vals.values = cml_malloc(n_values * sizeof(double));
     if (!spec->data.double_vals.values) return -1;
 
     memcpy(spec->data.double_vals.values, values, n_values * sizeof(double));
@@ -13561,7 +13601,7 @@ int param_grid_get_n_combinations(const ParameterGrid *grid) {
 double* param_grid_get_combination(const ParameterGrid *grid, int combo_index) {
     if (!grid) return NULL;
 
-    double *params = malloc(grid->n_params * sizeof(double));
+    double *params = cml_malloc(grid->n_params * sizeof(double));
     if (!params) return NULL;
 
     int divisor = 1;
@@ -13607,18 +13647,18 @@ void param_grid_free(ParameterGrid *grid) {
         ParamSpec *spec = &grid->params[i];
         switch (spec->type) {
             case PARAM_INT:
-                free(spec->data.int_vals.values);
+                cml_free(spec->data.int_vals.values);
                 break;
             case PARAM_DOUBLE:
-                free(spec->data.double_vals.values);
+                cml_free(spec->data.double_vals.values);
                 break;
             case PARAM_ENUM:
-                free(spec->data.enum_vals.values);
+                cml_free(spec->data.enum_vals.values);
                 break;
         }
     }
-    free(grid->params);
-    free(grid);
+    cml_free(grid->params);
+    cml_free(grid);
 }
 
 /* ============================================
@@ -13630,7 +13670,7 @@ GridSearchCV* grid_search_cv_create(
     ParameterGrid *param_grid,
     int cv
 ) {
-    GridSearchCV *gs = calloc(1, sizeof(GridSearchCV));
+    GridSearchCV *gs = cml_calloc(1, sizeof(GridSearchCV));
     if (!gs) return NULL;
 
     gs->base_estimator = estimator;
@@ -13644,7 +13684,7 @@ GridSearchCV* grid_search_cv_create(
     gs->is_classification = (estimator->task == TASK_CLASSIFICATION);
 
     int n_combos = param_grid_get_n_combinations(param_grid);
-    gs->results = calloc(n_combos, sizeof(GridSearchResult));
+    gs->results = cml_calloc(n_combos, sizeof(GridSearchResult));
     gs->n_results = n_combos;
     gs->best_index = -1;
     gs->best_score = -INFINITY;
@@ -13758,7 +13798,7 @@ int grid_search_cv_fit(GridSearchCV *gs, const Matrix *X, const Matrix *y) {
         // Clone and configure estimator
         Estimator *model = gs->base_estimator->clone(gs->base_estimator);
         if (!model) {
-            free(params);
+            cml_free(params);
             continue;
         }
 
@@ -13780,14 +13820,14 @@ int grid_search_cv_fit(GridSearchCV *gs, const Matrix *X, const Matrix *y) {
             if (cv->mean_test_score > gs->best_score) {
                 gs->best_score = cv->mean_test_score;
                 gs->best_index = combo;
-                free(gs->best_params);
-                gs->best_params = malloc(gs->param_grid->n_params * sizeof(double));
+                cml_free(gs->best_params);
+                gs->best_params = cml_malloc(gs->param_grid->n_params * sizeof(double));
                 memcpy(gs->best_params, params, gs->param_grid->n_params * sizeof(double));
             }
 
             cross_val_results_free(cv);
         } else {
-            free(params);
+            cml_free(params);
         }
 
         model->free(model);
@@ -13896,16 +13936,16 @@ void grid_search_cv_free(GridSearchCV *gs) {
     if (!gs) return;
 
     for (int i = 0; i < gs->n_results; i++) {
-        free(gs->results[i].param_values);
+        cml_free(gs->results[i].param_values);
     }
-    free(gs->results);
-    free(gs->best_params);
+    cml_free(gs->results);
+    cml_free(gs->best_params);
 
     if (gs->best_estimator) {
         gs->best_estimator->free(gs->best_estimator);
     }
 
-    free(gs);
+    cml_free(gs);
 }
 
 /* ============================================
@@ -13922,15 +13962,15 @@ LearningCurveResult* learning_curve(
 ) {
     if (!estimator || !X || !y || !train_sizes || n_sizes <= 0) return NULL;
 
-    LearningCurveResult *lc = calloc(1, sizeof(LearningCurveResult));
+    LearningCurveResult *lc = cml_calloc(1, sizeof(LearningCurveResult));
     if (!lc) return NULL;
 
     lc->n_points = n_sizes;
-    lc->train_sizes = malloc(n_sizes * sizeof(size_t));
-    lc->train_scores_mean = malloc(n_sizes * sizeof(double));
-    lc->train_scores_std = malloc(n_sizes * sizeof(double));
-    lc->test_scores_mean = malloc(n_sizes * sizeof(double));
-    lc->test_scores_std = malloc(n_sizes * sizeof(double));
+    lc->train_sizes = cml_malloc(n_sizes * sizeof(size_t));
+    lc->train_scores_mean = cml_malloc(n_sizes * sizeof(double));
+    lc->train_scores_std = cml_malloc(n_sizes * sizeof(double));
+    lc->test_scores_mean = cml_malloc(n_sizes * sizeof(double));
+    lc->test_scores_std = cml_malloc(n_sizes * sizeof(double));
 
     if (!lc->train_sizes || !lc->train_scores_mean || !lc->train_scores_std ||
         !lc->test_scores_mean || !lc->test_scores_std) {
@@ -13957,7 +13997,7 @@ LearningCurveResult* learning_curve(
         Matrix *y_sub = matrix_alloc(size, y->cols);
 
         // Random sample
-        size_t *indices = malloc(n_samples * sizeof(size_t));
+        size_t *indices = cml_malloc(n_samples * sizeof(size_t));
         for (size_t i = 0; i < n_samples; i++) indices[i] = i;
         shuffle_indices(indices, n_samples);
 
@@ -13969,7 +14009,7 @@ LearningCurveResult* learning_curve(
                 y_sub->data[i * y->cols + j] = y->data[indices[i] * y->cols + j];
             }
         }
-        free(indices);
+        cml_free(indices);
 
         // Cross-validate on subset
         CrossValResults *cv_result = cross_val_score(estimator, X_sub, y_sub, cv, 1, 42);
@@ -14026,12 +14066,12 @@ int learning_curve_save_csv(const LearningCurveResult *lc, const char *filename)
 
 void learning_curve_free(LearningCurveResult *lc) {
     if (!lc) return;
-    free(lc->train_sizes);
-    free(lc->train_scores_mean);
-    free(lc->train_scores_std);
-    free(lc->test_scores_mean);
-    free(lc->test_scores_std);
-    free(lc);
+    cml_free(lc->train_sizes);
+    cml_free(lc->train_scores_mean);
+    cml_free(lc->train_scores_std);
+    cml_free(lc->test_scores_mean);
+    cml_free(lc->test_scores_std);
+    cml_free(lc);
 }
 
 
@@ -14039,9 +14079,6 @@ void learning_curve_free(LearningCurveResult *lc) {
 /**
  * pipeline.c - Pipeline implementation
  */
-
-
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -14097,12 +14134,12 @@ static void standard_scaler_free(Transformer *self) {
     StandardScalerTransformer *sst = (StandardScalerTransformer*)self;
     if (sst) {
         scaler_free(sst->scaler);
-        free(sst);
+        cml_free(sst);
     }
 }
 
 StandardScalerTransformer* standard_scaler_transformer_create(void) {
-    StandardScalerTransformer *sst = calloc(1, sizeof(StandardScalerTransformer));
+    StandardScalerTransformer *sst = cml_calloc(1, sizeof(StandardScalerTransformer));
     if (!sst) return NULL;
 
     sst->base.name = "StandardScaler";
@@ -14161,12 +14198,12 @@ static void minmax_scaler_free_impl(Transformer *self) {
     MinMaxScalerTransformer *mst = (MinMaxScalerTransformer*)self;
     if (mst) {
         minmax_scaler_free(mst->scaler);
-        free(mst);
+        cml_free(mst);
     }
 }
 
 MinMaxScalerTransformer* minmax_scaler_transformer_create(void) {
-    MinMaxScalerTransformer *mst = calloc(1, sizeof(MinMaxScalerTransformer));
+    MinMaxScalerTransformer *mst = cml_calloc(1, sizeof(MinMaxScalerTransformer));
     if (!mst) return NULL;
 
     mst->base.name = "MinMaxScaler";
@@ -14276,11 +14313,11 @@ static Transformer* polynomial_clone(const Transformer *self) {
 }
 
 static void polynomial_free(Transformer *self) {
-    free(self);
+    cml_free(self);
 }
 
 PolynomialFeatures* polynomial_features_create(int degree, int include_bias, int interaction_only) {
-    PolynomialFeatures *pf = calloc(1, sizeof(PolynomialFeatures));
+    PolynomialFeatures *pf = cml_calloc(1, sizeof(PolynomialFeatures));
     if (!pf) return NULL;
 
     pf->base.name = "PolynomialFeatures";
@@ -14306,7 +14343,7 @@ PolynomialFeatures* polynomial_features_create(int degree, int include_bias, int
  * ============================================ */
 
 Pipeline* pipeline_create(void) {
-    Pipeline *pipe = calloc(1, sizeof(Pipeline));
+    Pipeline *pipe = cml_calloc(1, sizeof(Pipeline));
     if (!pipe) return NULL;
 
     // Set up as Estimator
@@ -14339,7 +14376,7 @@ int pipeline_add_transformer(Pipeline *pipe, const char *name, Transformer *tran
     // Expand capacity if needed
     if (pipe->n_steps >= pipe->capacity) {
         int new_capacity = pipe->capacity == 0 ? 4 : pipe->capacity * 2;
-        PipelineStep *new_steps = realloc(pipe->steps, new_capacity * sizeof(PipelineStep));
+        PipelineStep *new_steps = cml_realloc(pipe->steps, new_capacity * sizeof(PipelineStep));
         if (!new_steps) return -1;
         pipe->steps = new_steps;
         pipe->capacity = new_capacity;
@@ -14367,7 +14404,7 @@ int pipeline_add_estimator(Pipeline *pipe, const char *name, Estimator *estimato
     // Expand capacity if needed
     if (pipe->n_steps >= pipe->capacity) {
         int new_capacity = pipe->capacity == 0 ? 4 : pipe->capacity * 2;
-        PipelineStep *new_steps = realloc(pipe->steps, new_capacity * sizeof(PipelineStep));
+        PipelineStep *new_steps = cml_realloc(pipe->steps, new_capacity * sizeof(PipelineStep));
         if (!new_steps) return -1;
         pipe->steps = new_steps;
         pipe->capacity = new_capacity;
@@ -14550,7 +14587,7 @@ void pipeline_free(Estimator *self) {
 
     for (int i = 0; i < pipe->n_steps; i++) {
         PipelineStep *step = &pipe->steps[i];
-        free(step->name);
+        cml_free(step->name);
 
         if (step->type == STEP_TRANSFORMER) {
             step->step.transformer->free(step->step.transformer);
@@ -14559,8 +14596,8 @@ void pipeline_free(Estimator *self) {
         }
     }
 
-    free(pipe->steps);
-    free(pipe);
+    cml_free(pipe->steps);
+    cml_free(pipe);
 }
 
 void pipeline_print_summary(const Estimator *self) {
@@ -14615,7 +14652,6 @@ Estimator* pipeline_get_estimator(Pipeline *pipe) {
     }
     return NULL;
 }
-
 
 
 #endif /* CML_IMPLEMENTATION */

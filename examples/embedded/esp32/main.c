@@ -27,6 +27,17 @@
 /* #include "esp_log.h" */
 
 /* ============================================================
+ * tinycml-embed configuration
+ * Sensor anomaly detection on ESP32 with GaussianNB
+ * ============================================================ */
+#define CML_ENABLE_NAIVE_BAYES
+#define CML_USE_POOL
+#define CML_POOL_SIZE 2048
+
+#include "cml_config.h"
+#include "cml_pool.h"
+
+/* ============================================================
  * tinycml — single-header mode
  * ============================================================ */
 #define CML_IMPLEMENTATION
@@ -103,6 +114,9 @@ static const char *class_labels[] = { "NORMAL", "ANOMALY" };
 #endif
 
 void ENTRY_POINT(void) {
+    /* --- Initialize memory pool --- */
+    cml_pool_init();
+
     printf("\n========================================\n");
     printf("  tinycml on ESP32\n");
     printf("  GaussianNB Sensor Anomaly Detector\n");

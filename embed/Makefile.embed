@@ -1,0 +1,124 @@
+# tinycml-embed Makefile
+# Cross-compilation targets for embedded systems
+#
+# Usage:
+#   make arm       # ARM Cortex-M (arm-none-eabi-gcc)
+#   make esp32     # ESP32 (ESP-IDF toolchain)
+#   make riscv     # RISC-V (riscv-none-elf-gcc)
+#   make native    # Native build (for testing)
+#
+# Algorithm selection (define only what you need):
+#   make arm CML_ALGOS="KNN NAIVE_BAYES LINEAR_REGRESSION"
+#
+# Pool size:
+#   make arm CML_POOL_SIZE=2048
+
+# ── Toolchains ────────────────────────────────────────────────────────
+ARM_CC    = arm-none-eabi-gcc
+ARM_AR    = arm-none-eabi-ar
+ARM_CFLAGS = -mcpu=cortex-m4 -mthumb -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib
+
+ESP_CC    = xtensa-esp32-elf-gcc
+ESP_CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -mlongcalls
+
+RV_CC     = riscv-none-elf-gcc
+RV_CFLAGS = -march=rv32imc -mabi=ilp32 -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib
+
+NATIVE_CC = cc
+NATIVE_CFLAGS = -std=c11 -Wall -Wextra -O2
+
+# ── Paths ──────────────────────────────────────────────────────────────
+BUILD_DIR = build
+SRC_DIR  = .
+EMBED_DIR = embed
+
+# ── Algorithm selection ────────────────────────────────────────────────
+# Default: minimal set (KNN + Naive Bayes + Linear Regression)
+CML_ALGOS ?= KNN NAIVE_BAYES LINEAR_REGRESSION LOGISTIC_REGRESSION SVM
+
+CML_DEFINES = $(addprefix -DCML_ENABLE_,$(CML_ALGOS))
+
+# If any specific algo is requested, build only that
+ifneq ($(CML_ALGOS),ALL)
+CML_FLAGS = $(CML_DEFINES)
+else
+CML_FLAGS = -DCML_ENABLE_ALL
+endif
+
+# Pool configuration
+CML_POOL_SIZE ?= 4096
+CML_FLAGS += -DCML_USE_POOL -DCML_POOL_SIZE=$(CML_POOL_SIZE)
+
+# ── Source files ──────────────────────────────────────────────────────
+# We use the single-header mode - just compile tinycml.c (which is just
+# #define CML_IMPLEMENTATION + #include "tinycml.h")
+SOURCES = $(EMBED_DIR)/tinycml_embed.c
+
+# ── Build targets ──────────────────────────────────────────────────────
+.PHONY: all arm esp32 riscv native clean
+
+all: arm esp32 riscv native
+
+# Create the tinycml_embed.c shim
+$(EMBED_DIR)/tinycml_embed.c:
+	@mkdir -p $(EMBED_DIR)
+	@echo '/* Auto-generated */' > $(EMBED_DIR)/tinycml_embed.c
+	@echo '#include "cml_config.h"' >> $(EMBED_DIR)/tinycml_embed.c
+	@echo '#include "cml_pool.h"' >> $(EMBED_DIR)/tinycml_embed.c
+	@echo '#define CML_IMPLEMENTATION' >> $(EMBED_DIR)/tinycml_embed.c
+	@echo '#include "../tinycml.h"' >> $(EMBED_DIR)/tinycml_embed.c
+
+# ── ARM Cortex-M ──────────────────────────────────────────────────────
+arm: $(EMBED_DIR)/tinycml_embed.c
+	mkdir -p $(BUILD_DIR)/arm
+	$(ARM_CC) $(ARM_CFLAGS) $(CML_FLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
+		-c $(EMBED_DIR)/tinycml_embed.c -o $(BUILD_DIR)/arm/tinycml.o
+	$(ARM_AR) rcs $(BUILD_DIR)/arm/libtinycml.a $(BUILD_DIR)/arm/tinycml.o
+	@echo "ARM: $(BUILD_DIR)/arm/libtinycml.a"
+	@$(ARM_CC) $(ARM_CFLAGS) -MM -I$(SRC_DIR) -I$(EMBED_DIR) \
+		$(EMBED_DIR)/tinycml_embed.c 2>/dev/null; \
+		size $(BUILD_DIR)/arm/tinycml.o 2>/dev/null || true
+
+# ── ESP32 ─────────────────────────────────────────────────────────────
+esp32: $(EMBED_DIR)/tinycml_embed.c
+	mkdir -p $(BUILD_DIR)/esp32
+	$(ESP_CC) $(ESP_CFLAGS) $(CML_FLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
+		-c $(EMBED_DIR)/tinycml_embed.c -o $(BUILD_DIR)/esp32/tinycml.o
+	$(ARM_AR) rcs $(BUILD_DIR)/esp32/libtinycml.a $(BUILD_DIR)/esp32/tinycml.o
+	@echo "ESP32: $(BUILD_DIR)/esp32/libtinycml.a"
+	@size $(BUILD_DIR)/esp32/tinycml.o 2>/dev/null || true
+
+# ── RISC-V ────────────────────────────────────────────────────────────
+riscv: $(EMBED_DIR)/tinycml_embed.c
+	mkdir -p $(BUILD_DIR)/riscv
+	$(RV_CC) $(RV_CFLAGS) $(CML_FLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
+		-c $(EMBED_DIR)/tinycml_embed.c -o $(BUILD_DIR)/riscv/tinycml.o
+	$(ARM_AR) rcs $(BUILD_DIR)/riscv/libtinycml.a $(BUILD_DIR)/riscv/tinycml.o
+	@echo "RISC-V: $(BUILD_DIR)/riscv/libtinycml.a"
+	@size $(BUILD_DIR)/riscv/tinycml.o 2>/dev/null || true
+
+# ── Native (testing on host) ──────────────────────────────────────────
+native: $(EMBED_DIR)/tinycml_embed.c
+	mkdir -p $(BUILD_DIR)/native
+	$(NATIVE_CC) $(NATIVE_CFLAGS) $(CML_FLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
+		-c $(EMBED_DIR)/tinycml_embed.c -o $(BUILD_DIR)/native/tinycml.o
+	@echo "NATIVE: $(BUILD_DIR)/native/tinycml.o"
+
+# ── Native test ───────────────────────────────────────────────────────
+test_native: native
+	$(NATIVE_CC) $(NATIVE_CFLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
+		examples/embedded/stm32/main.c $(BUILD_DIR)/native/tinycml.o -lm -o $(BUILD_DIR)/native/tinycml_stm32_test
+	$(BUILD_DIR)/native/tinycml_stm32_test
+
+# ── Code size report ──────────────────────────────────────────────────
+size_report: arm
+	@echo ""
+	@echo "=== Code Size Report ==="
+	@$(ARM_CC) $(ARM_CFLAGS) -MM -I$(SRC_DIR) -I$(EMBED_DIR) \
+		$(EMBED_DIR)/tinycml_embed.c 2>/dev/null
+	@arm-none-eabi-size $(BUILD_DIR)/arm/tinycml.o 2>/dev/null || \
+		echo "(install arm-none-eabi-gcc for size report)"
+
+# ── Clean ─────────────────────────────────────────────────────────────
+clean:
+	rm -rf $(BUILD_DIR)
