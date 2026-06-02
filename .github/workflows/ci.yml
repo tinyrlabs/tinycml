@@ -1,10 +1,9 @@
 name: CI
-
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -14,27 +13,51 @@ jobs:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: make clean && make build CC=${{ matrix.compiler }}
-      - name: Run tests
-        run: make test
-      - name: Build shared library
-        run: make shared CC=${{ matrix.compiler }}
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y libomp-dev
+      - name: Full build (${{ matrix.compiler }})
+        run: |
+          make clean
+          make CC=${{ matrix.compiler }}
+      - name: Full test (${{ matrix.compiler }})
+        run: make test CC=${{ matrix.compiler }}
 
   sanitize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build with ASAN
-        run: make clean && make build CC=gcc CFLAGS="-std=c11 -Wall -Wextra -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
-      - name: Run tests with ASAN
-        run: make test
+      - name: Address + UB sanitizer
+        run: |
+          make clean
+          make CC=gcc CFLAGS="-std=c11 -Wall -Wextra -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+          make test
 
-  docs:
+  embed:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Doxygen
-        run: sudo apt-get install -y doxygen
-      - name: Generate docs
-        run: make docs || echo "Doxyfile not found, skipping"
+      - name: Amalgamate
+        run: bash scripts/amalgamate.sh
+      - name: Embed native test
+        run: make -f embed/Makefile.embed test_native CML_POOL_SIZE=8192
+      - name: Math LUT compile test
+        run: |
+          cc -std=c11 -Wall -Wextra -O2 -DCML_NO_MATH -I. -Iembed \
+            -c embed/tinycml_embed.c -o /dev/null 2>&1
+      - name: Feature flag isolation (KNN-only)
+        run: |
+          make -f embed/Makefile.embed native CML_ALGOS="KNN" CML_POOL_SIZE=1024
+          cc -std=c11 -Wall -Wextra -O2 -I. -Iembed \
+            examples/embedded/test_embed_native.c build/native/tinycml.o \
+            -lm -o /tmp/test_flags && /tmp/test_flags
+
+  amalgamation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify amalgamation freshness
+        run: |
+          cp tinycml.h tinycml.h.bak
+          bash scripts/amalgamate.sh
+          diff tinycml.h tinycml.h.bak && echo "FRESH" || \
+            { echo "STALE — run scripts/amalgamate.sh and commit"; exit 1; }
