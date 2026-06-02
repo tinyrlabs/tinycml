@@ -50,6 +50,12 @@ endif
 CML_POOL_SIZE ?= 4096
 CML_FLAGS += -DCML_USE_POOL -DCML_POOL_SIZE=$(CML_POOL_SIZE)
 
+# Math configuration (avoid -lm, use lookup tables)
+ifneq ($(CML_NO_MATH),)
+CML_FLAGS += -DCML_NO_MATH
+$(info [tinycml-embed] CML_NO_MATH=1 — using lookup tables instead of -lm)
+endif
+
 # ── Source files ──────────────────────────────────────────────────────
 # We use the single-header mode - just compile tinycml.c (which is just
 # #define CML_IMPLEMENTATION + #include "tinycml.h")
