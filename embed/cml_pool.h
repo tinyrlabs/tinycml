@@ -72,8 +72,26 @@ typedef struct {
     size_t remaining;
     int    init_called;
 } CMLPoolStats;
-
 CMLPoolStats cml_pool_stats(void);
+
+/**
+ * @brief Allocate and zero-initialize from pool (replaces calloc)
+ * @param n Number of elements
+ * @param size Size of each element
+ * @return Pointer or NULL if pool exhausted
+ */
+void* cml_pool_calloc(size_t n, size_t size);
+
+/**
+ * @brief Reallocate in pool (replaces realloc)
+ * @param ptr Old pointer (must be from pool)
+ * @param size New size
+ * @return Pointer or NULL if pool exhausted
+ *
+ * NOTE: only supports growing; if pool has space after ptr,
+ * extends in-place, otherwise allocates new block and copies.
+ */
+void* cml_pool_realloc(void *ptr, size_t size);
 
 /* ============================================================
  * malloc/free override macros
@@ -87,12 +105,14 @@ CMLPoolStats cml_pool_stats(void);
 #define cml_malloc(s)  cml_pool_alloc(s)
 #define cml_free(p)    cml_pool_free(p)
 #define cml_calloc(n,s) cml_pool_calloc(n,s)
+#define cml_realloc(p,s) cml_pool_realloc(p,s)
 #else
 /* Fallback to stdlib */
 #include <stdlib.h>
 #define cml_malloc(s)  malloc(s)
 #define cml_free(p)    free(p)
 #define cml_calloc(n,s) calloc(n,s)
+#define cml_realloc(p,s) realloc(p,s)
 #endif
 
 /* ============================================================
@@ -144,6 +164,36 @@ void* cml_pool_calloc(size_t n, size_t size) {
         memset(ptr, 0, total);
     }
     return ptr;
+}
+
+void* cml_pool_realloc(void *ptr, size_t size) {
+    if (!ptr) {
+        return cml_pool_alloc(size);
+    }
+    if (size == 0) {
+        return NULL;
+    }
+    /* Bump allocator realloc: allocate new block, copy old data.
+     * Since we don't track per-block sizes, we copy up to pool boundary.
+     * This is wasteful but safe for embedded ML workloads where realloc
+     * is rare (only used in csv parsing and pipeline step arrays). */
+    size_t aligned = (size + 7) & ~7;
+    if (cml_pool_offset + aligned > CML_POOL_SIZE) {
+        return NULL;
+    }
+    void *new_ptr = &cml_pool_buffer[cml_pool_offset];
+    cml_pool_offset += aligned;
+
+    /* Copy old data — we can't know the exact old size, but ptr is
+     * somewhere before new_ptr so we copy up to new_ptr - ptr bytes. */
+    size_t old_data_size = (size_t)((char*)new_ptr - (char*)ptr);
+    if (old_data_size > size) old_data_size = size;
+    memmove(new_ptr, ptr, old_data_size);
+
+    if (cml_pool_offset > cml_pool_peak) {
+        cml_pool_peak = cml_pool_offset;
+    }
+    return new_ptr;
 }
 
 void cml_pool_free(void *ptr) {

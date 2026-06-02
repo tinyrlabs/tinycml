@@ -354,7 +354,6 @@ const char* cml_status_string(CMLStatus code);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief Compute dot product of two vectors
@@ -404,7 +403,6 @@ Matrix* vector_sub(const Matrix *a, const Matrix *b);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief Load a CSV file into a Matrix
@@ -471,7 +469,6 @@ char csv_detect_delimiter(const char *path);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief Confusion matrix structure
@@ -634,7 +631,6 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief k-Means model structure
@@ -678,7 +674,6 @@ void kmeans_free(KMeansModel *model);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief DBSCAN clustering model
@@ -725,7 +720,6 @@ void dbscan_free(DBSCAN *model);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief Result of train/test split
@@ -838,7 +832,6 @@ Matrix* add_bias_column(const Matrix *X);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief k-NN model structure
@@ -890,7 +883,6 @@ void knn_free(KNNModel *model);
  */
 
 
-#include "matrix.h"
 
 /**
  * @brief One-hot encoder for integer-valued categorical features
@@ -950,7 +942,6 @@ void onehot_encoder_free(OneHotEncoder *encoder);
  */
 
 
-#include "matrix.h"
 
 /**
  * Model type enumeration
@@ -1098,7 +1089,6 @@ void verbose_print_progress_bar(int current, int total, int bar_width);
 
 
 #include <stdio.h>
-#include "matrix.h"
 
 /* Magic bytes: "CML\0" */
 #define CML_SER_MAGIC_SIZE 4
@@ -1161,8 +1151,6 @@ int cml_ser_read_int(FILE *f, int *val);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * Solver method for linear regression
@@ -1299,8 +1287,6 @@ Matrix* linreg_predict(const Matrix *X, const Matrix *weights);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * @brief Sigmoid function
@@ -1441,8 +1427,6 @@ Estimator* softmax_model_load(const char *path);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 typedef struct {
     Estimator base;
@@ -1493,8 +1477,6 @@ void ridge_free(Estimator *self);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 typedef struct {
     Estimator base;
@@ -1545,8 +1527,6 @@ void lasso_free(Estimator *self);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * @brief Linear SVM classifier using sub-gradient descent with hinge loss
@@ -1676,8 +1656,6 @@ Estimator* svm_classifier_load(const char *path);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * @brief Gaussian Naive Bayes classifier
@@ -1785,8 +1763,6 @@ Estimator* multinomial_nb_load(const char *path);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * Criterion for splitting
@@ -1998,8 +1974,6 @@ void decision_tree_export_text(const TreeNode *root, int depth);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * PCA (Principal Component Analysis)
@@ -2120,8 +2094,6 @@ int eigen_decomposition(const Matrix *A, Matrix **eigenvectors, double *eigenval
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * Activation functions
@@ -2371,8 +2343,6 @@ void layer_free(Layer *layer);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * K-Fold split indices
@@ -2583,8 +2553,6 @@ Matrix* matrix_get_rows(const Matrix *m, const size_t *indices, size_t n_indices
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
 
 /**
  * Feature scoring functions
@@ -2801,9 +2769,6 @@ int get_feature_importances(const Estimator *estimator, double *importances);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
-#include "decision_tree.h"
 
 /**
  * Random Forest Classifier
@@ -2973,9 +2938,6 @@ void random_forest_regressor_free(Estimator *self);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
-#include "validation.h"
 
 /**
  * Parameter types
@@ -3201,9 +3163,6 @@ void learning_curve_free(LearningCurveResult *lc);
  */
 
 
-#include "matrix.h"
-#include "estimator.h"
-#include "preprocessing.h"
 
 /**
  * Pipeline step types

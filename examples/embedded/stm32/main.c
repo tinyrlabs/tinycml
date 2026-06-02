@@ -95,6 +95,9 @@ static int embedded_printf(const char *fmt, ...) {
 }
 
 /* Redefine printf for tinycml internal use */
+#ifdef printf
+#undef printf
+#endif
 #define printf embedded_printf
 
 /* ============================================================
