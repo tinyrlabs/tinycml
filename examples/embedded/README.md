@@ -1,13 +1,18 @@
-# tinycml on Embedded Systems
+# tinycml on Embedded Systems / Gömülü Sistemlerde tinycml
 
 Run machine learning inference directly on microcontrollers — no OS, no dynamic allocation in core ops, no external dependencies.
+*Doğrudan mikrodenetleyiciler üzerinde makine öğrenimi çıkarımı — işletim sistemi yok, dinamik bellek yok, harici bağımlılık yok.*
 
-## Why tinycml on Embedded?
+## Why tinycml on Embedded? / Neden Gömülü Sistemlerde tinycml?
 
 - **Single-header mode**: Drop `tinycml.h` into any project with `#define CML_IMPLEMENTATION`
+  *Tek başlık modu: `tinycml.h`'ı herhangi bir projeye ekleyin.*
 - **C11, no dependencies**: Works with bare-metal toolchains (ARM GCC, Xtensa, RISC-V)
+  *C11, bağımlılık yok: Çıplak-metal araç zincirleriyle çalışır.*
 - **No dynamic allocation in core matrix ops**: Predictable memory usage
+  *Temel matris işlemlerinde dinamik bellek yok: Öngörülebilir bellek kullanımı.*
 - **Deterministic inference**: No hidden allocations during prediction
+  *Deterministik çıkarım: Tahmin sırasında gizli bellek ayırma yok.*
 
 ## Recommended Models for Constrained Devices
 
@@ -88,6 +93,22 @@ cd examples/embedded
 make esp32
 ```
 
+### ESP32 (PlatformIO / Arduino Framework)
+
+```bash
+# Navigate to the PlatformIO project
+cd examples/embedded/platformio
+
+# Build
+pio run
+
+# Upload
+pio run --target upload
+
+# Monitor Serial output (115200 baud)
+pio device monitor
+```
+
 ### Custom Bare-Metal Target
 
 ```bash
@@ -114,7 +135,10 @@ Strip unused features at compile time:
 - Without CSV/serialization: ~45 KB Flash
 - KNN + NB + DecisionTree only: ~25 KB Flash
 
-## Examples
+## Examples / Örnekler
 
-- **stm32/** — KNN classifier for comfort-level prediction (temperature + humidity)
-- **esp32/** — GaussianNB for sensor anomaly classification (3 features, 2 classes)
+- **stm32/** — KNN comfort predictor (temp + humidity)
+- **esp32/** — GaussianNB sensor anomaly detector (3 features, 2 classes)
+- **riscv/** — Linear Regression temperature calibration
+- **platformio/** — ESP32 + Arduino via PlatformIO (KNN comfort predictor)
+- **test_embed_native.c** — Native test suite (55 tests)
