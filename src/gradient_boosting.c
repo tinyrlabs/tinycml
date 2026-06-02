@@ -156,8 +156,14 @@ Estimator* gradient_boosting_fit(Estimator *self, const Matrix *X, const Matrix 
                 for (size_t i = 0; i < train_n; i++) {
                     indices[i] = gb_next_seed(&gb->seed) % n;
                 }
-                X_train = matrix_get_rows(X, indices, train_n);
-                y_train = matrix_get_rows(residuals, indices, train_n);
+                X_train = matrix_alloc(train_n, X->cols);
+                y_train = matrix_alloc(train_n, 1);
+                for (size_t i = 0; i < train_n; i++) {
+                    size_t idx = indices[i];
+                    for (size_t j = 0; j < X->cols; j++)
+                        matrix_set(X_train, i, j, matrix_get(X, idx, j));
+                    matrix_set(y_train, i, 0, matrix_get(residuals, idx, 0));
+                }
             }
         }
 

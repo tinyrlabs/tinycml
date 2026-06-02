@@ -1,4 +1,5 @@
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 /**
  * @file test_simd.c
  * @brief Tests for SIMD-accelerated operations
