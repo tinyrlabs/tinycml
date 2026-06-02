@@ -62,8 +62,29 @@
 /* ============================================================
  * Math Configuration
  * ============================================================
- * Some MCUs lack full math.h. Define CML_NO_MATH to use
- * lookup tables for sqrt/exp/log instead.
+ * Some MCUs lack full math.h or you want to avoid linking -lm.
+ * Define CML_NO_MATH to use pre-computed lookup tables with
+ * linear interpolation for sqrt, exp, log, and log10 instead
+ * of math.h functions.
+ *
+ * The lookup tables provide ~0.1% accuracy and cover:
+ *   sqrt(x):  x in [0, 100], step 0.1,   1001 entries (~8 KB)
+ *   exp(x):   x in [-10, 10], step 0.01, 2001 entries (~16 KB)
+ *   log(x):   x in [0.1, 100], step 0.1, 1000 entries (~8 KB)
+ *   log10(x): derived from log(x) / ln(10)
+ * Total table cost: ~32 KB of Flash when CML_NO_MATH is active.
+ *
+ * Usage with Makefile.embed:
+ *   make arm CML_NO_MATH=1     # ARM + lookup tables
+ *   make native CML_NO_MATH=1  # Native + lookup tables
+ *
+ * Usage in source:
+ *   #define CML_NO_MATH
+ *   #include "embed/cml_math_lut.h"    // before tinycml.h
+ *   #include "tinycml.h"
+ *
+ * When CML_NO_MATH is NOT defined, cml_sqrt/cml_exp/cml_log
+ * are thin inline wrappers around math.h (default behavior).
  * ============================================================ */
 /* #define CML_NO_MATH */
 
