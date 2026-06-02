@@ -1,5 +1,5 @@
 /* tinycml v0.1.0 - single-header ML library */
-/* https://github.com/sametyilmaztemel/tinycml */
+/* https://github.com/tinyrlabs/tinycml */
 /*
  * SINGLE-HEADER AMALGAMATION
  *
@@ -624,6 +624,274 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters);
 
 
 
+/* --- estimator.h --- */
+/**
+ * estimator.h - Unified Estimator API for tinycml
+ *
+ * Provides a scikit-learn style interface for all models:
+ * - fit(X, y) - Train the model
+ * - predict(X) - Make predictions
+ * - score(X, y) - Evaluate model performance
+ *
+ * Zero dependencies, pure C11.
+ */
+
+
+
+/**
+ * Model type enumeration
+ */
+typedef enum {
+    MODEL_LINEAR_REGRESSION,
+    MODEL_LOGISTIC_REGRESSION,
+    MODEL_KNN,
+    MODEL_KMEANS,
+    MODEL_NAIVE_BAYES,
+    MODEL_DECISION_TREE,
+    MODEL_RANDOM_FOREST,
+    MODEL_NEURAL_NETWORK,
+    MODEL_SVM,
+    MODEL_PCA,
+    MODEL_FEATURE_SELECTOR,
+    MODEL_GRADIENT_BOOSTING
+} ModelType;
+
+/**
+ * Task type - determines default scoring metric
+ */
+typedef enum {
+    TASK_REGRESSION,
+    TASK_CLASSIFICATION,
+    TASK_CLUSTERING,
+    TASK_TRANSFORMATION
+} TaskType;
+
+/**
+ * Training history for iterative algorithms
+ */
+typedef struct {
+    double *loss_history;      // Loss at each epoch
+    double *metric_history;    // Primary metric at each epoch
+    size_t n_epochs;           // Number of epochs recorded
+    size_t capacity;           // Allocated capacity
+    int converged;             // Whether training converged early
+    size_t best_epoch;         // Epoch with best validation score
+} TrainingHistory;
+
+/**
+ * Callback function type for training progress
+ * Called at the end of each epoch with current state
+ */
+typedef void (*TrainingCallback)(
+    int epoch,
+    double loss,
+    double metric,
+    void *user_data
+);
+
+/**
+ * Verbose level for training output
+ */
+typedef enum {
+    VERBOSE_SILENT = 0,    // No output
+    VERBOSE_MINIMAL = 1,   // Only final result
+    VERBOSE_PROGRESS = 2,  // Progress bar / periodic updates
+    VERBOSE_DETAILED = 3   // Every epoch
+} VerboseLevel;
+
+/**
+ * Base estimator structure - all models embed this
+ */
+typedef struct Estimator {
+    ModelType type;
+    TaskType task;
+    int is_fitted;
+
+    // Virtual function table (polymorphism in C)
+    struct Estimator* (*fit)(struct Estimator *self, const Matrix *X, const Matrix *y);
+    Matrix* (*predict)(const struct Estimator *self, const Matrix *X);
+    Matrix* (*predict_proba)(const struct Estimator *self, const Matrix *X);
+    Matrix* (*transform)(const struct Estimator *self, const Matrix *X);
+    double (*score)(const struct Estimator *self, const Matrix *X, const Matrix *y);
+    struct Estimator* (*clone)(const struct Estimator *self);
+    void (*free)(struct Estimator *self);
+    int (*save)(const struct Estimator *self, const char *filename);
+    struct Estimator* (*load)(const char *filename);
+    void (*print_summary)(const struct Estimator *self);
+
+    // Training configuration
+    VerboseLevel verbose;
+    TrainingCallback callback;
+    void *callback_data;
+    TrainingHistory *history;
+
+    // Model-specific data follows this struct
+    void *model_data;
+} Estimator;
+
+/**
+ * Training history management
+ */
+TrainingHistory* training_history_alloc(size_t initial_capacity);
+void training_history_append(TrainingHistory *history, double loss, double metric);
+void training_history_free(TrainingHistory *history);
+void training_history_print(const TrainingHistory *history);
+int training_history_save_csv(const TrainingHistory *history, const char *filename);
+
+/**
+ * Estimator utilities
+ */
+
+// Check if model is fitted, return error message if not
+int estimator_check_fitted(const Estimator *est, const char *method_name);
+
+// Set verbose level
+void estimator_set_verbose(Estimator *est, VerboseLevel level);
+
+// Set training callback
+void estimator_set_callback(Estimator *est, TrainingCallback cb, void *user_data);
+
+// Get training history
+const TrainingHistory* estimator_get_history(const Estimator *est);
+
+// Clone estimator with same parameters but unfitted
+Estimator* estimator_clone(const Estimator *est);
+
+// Default score implementations
+double regression_score_r2(const Estimator *est, const Matrix *X, const Matrix *y);
+double classification_score_accuracy(const Estimator *est, const Matrix *X, const Matrix *y);
+
+/**
+ * Verbose output helpers
+ */
+void verbose_print_epoch(VerboseLevel level, int epoch, int total_epochs,
+                         double loss, double metric, const char *metric_name);
+void verbose_print_final(VerboseLevel level, const char *model_name,
+                         double final_metric, const char *metric_name, double elapsed_time);
+void verbose_print_progress_bar(int current, int total, int bar_width);
+
+
+
+/* --- onehot_encoder.h --- */
+/**
+ * @file onehot_encoder.h
+ * @brief One-hot encoding transformer for categorical integer features
+ */
+
+
+
+/**
+ * @brief One-hot encoder for integer-valued categorical features
+ *
+ * Fits on a Matrix X where each column represents a categorical feature
+ * with integer values. Transforms into a one-hot representation.
+ */
+typedef struct {
+    int n_features;          /**< Number of input features (columns) */
+    int *n_categories;       /**< Number of unique categories per feature */
+    int **categories_;       /**< Category values per feature (sorted) */
+    int total_output_cols;   /**< Sum of n_categories across all features */
+
+    int is_fitted;           /**< Whether encoder has been fitted */
+} OneHotEncoder;
+
+/**
+ * @brief Create a new OneHotEncoder
+ * @return Pointer to newly allocated encoder, or NULL on failure
+ */
+OneHotEncoder* onehot_encoder_create(void);
+
+/**
+ * @brief Fit the encoder on training data
+ * @param encoder Encoder to fit
+ * @param X Feature matrix with integer-valued entries
+ * @return 0 on success, -1 on error
+ */
+int onehot_encoder_fit(OneHotEncoder *encoder, const Matrix *X);
+
+/**
+ * @brief Transform data using fitted encoder
+ * @param encoder Fitted encoder
+ * @param X Feature matrix with integer-valued entries
+ * @return One-hot encoded matrix (n_samples × total_output_cols), or NULL on error
+ */
+Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X);
+
+/**
+ * @brief Free encoder memory
+ * @param encoder Encoder to free
+ */
+void onehot_encoder_free(OneHotEncoder *encoder);
+
+
+
+/* --- cml_serialization.h --- */
+/**
+ * cml_serialization.h - Shared serialization helpers for tinycml models
+ *
+ * Provides common binary format utilities for save/load:
+ *   MAGIC (4 bytes: "CML\0")
+ *   SUBTYPE (4 bytes: int)
+ *   Model-specific data
+ */
+
+
+#include <stdio.h>
+
+/* Magic bytes: "CML\0" */
+#define CML_SER_MAGIC_SIZE 4
+
+/* Model subtype IDs for distinguishing models sharing a ModelType */
+enum {
+    CML_SUB_LOGREG_BINARY     = 1,
+    CML_SUB_SOFTMAX           = 2,
+    CML_SUB_GAUSSIAN_NB       = 3,
+    CML_SUB_MULTINOMIAL_NB    = 4,
+    CML_SUB_LINEAR_SVC        = 5,
+    CML_SUB_SVM_CLASSIFIER    = 6,
+    CML_SUB_RIDGE             = 7,
+    CML_SUB_LASSO             = 8,
+    CML_SUB_DECISION_TREE_CLF = 9,
+};
+
+/** Write serialization header (magic + subtype). Returns 0 on success. */
+int cml_ser_write_header(FILE *f, int subtype);
+
+/** Read and verify serialization header. Returns 0 on success. */
+int cml_ser_check_header(FILE *f, int expected_subtype);
+
+/** Write a matrix in serialization format (rows, cols, data). */
+int cml_ser_write_matrix(FILE *f, const Matrix *m);
+
+/** Read a matrix from serialization format. Returns new matrix or NULL. */
+Matrix* cml_ser_read_matrix(FILE *f);
+
+/** Write an array of n doubles. */
+int cml_ser_write_doubles(FILE *f, const double *data, int n);
+
+/** Read an array of n doubles. */
+int cml_ser_read_doubles(FILE *f, double *data, int n);
+
+/** Write an array of n ints. */
+int cml_ser_write_ints(FILE *f, const int *data, int n);
+
+/** Read an array of n ints. */
+int cml_ser_read_ints(FILE *f, int *data, int n);
+
+/** Write a single double. */
+int cml_ser_write_double(FILE *f, double val);
+
+/** Read a single double. */
+int cml_ser_read_double(FILE *f, double *val);
+
+/** Write a single int. */
+int cml_ser_write_int(FILE *f, int val);
+
+/** Read a single int. */
+int cml_ser_read_int(FILE *f, int *val);
+
+
+
 /* --- kmeans.h --- */
 /**
  * @file kmeans.h
@@ -873,274 +1141,6 @@ Matrix* knn_predict_proba(const KNNModel *model, const Matrix *X, int n_classes)
  * @param model Model to free
  */
 void knn_free(KNNModel *model);
-
-
-
-/* --- onehot_encoder.h --- */
-/**
- * @file onehot_encoder.h
- * @brief One-hot encoding transformer for categorical integer features
- */
-
-
-
-/**
- * @brief One-hot encoder for integer-valued categorical features
- *
- * Fits on a Matrix X where each column represents a categorical feature
- * with integer values. Transforms into a one-hot representation.
- */
-typedef struct {
-    int n_features;          /**< Number of input features (columns) */
-    int *n_categories;       /**< Number of unique categories per feature */
-    int **categories_;       /**< Category values per feature (sorted) */
-    int total_output_cols;   /**< Sum of n_categories across all features */
-
-    int is_fitted;           /**< Whether encoder has been fitted */
-} OneHotEncoder;
-
-/**
- * @brief Create a new OneHotEncoder
- * @return Pointer to newly allocated encoder, or NULL on failure
- */
-OneHotEncoder* onehot_encoder_create(void);
-
-/**
- * @brief Fit the encoder on training data
- * @param encoder Encoder to fit
- * @param X Feature matrix with integer-valued entries
- * @return 0 on success, -1 on error
- */
-int onehot_encoder_fit(OneHotEncoder *encoder, const Matrix *X);
-
-/**
- * @brief Transform data using fitted encoder
- * @param encoder Fitted encoder
- * @param X Feature matrix with integer-valued entries
- * @return One-hot encoded matrix (n_samples × total_output_cols), or NULL on error
- */
-Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X);
-
-/**
- * @brief Free encoder memory
- * @param encoder Encoder to free
- */
-void onehot_encoder_free(OneHotEncoder *encoder);
-
-
-
-/* --- estimator.h --- */
-/**
- * estimator.h - Unified Estimator API for tinycml
- *
- * Provides a scikit-learn style interface for all models:
- * - fit(X, y) - Train the model
- * - predict(X) - Make predictions
- * - score(X, y) - Evaluate model performance
- *
- * Zero dependencies, pure C11.
- */
-
-
-
-/**
- * Model type enumeration
- */
-typedef enum {
-    MODEL_LINEAR_REGRESSION,
-    MODEL_LOGISTIC_REGRESSION,
-    MODEL_KNN,
-    MODEL_KMEANS,
-    MODEL_NAIVE_BAYES,
-    MODEL_DECISION_TREE,
-    MODEL_RANDOM_FOREST,
-    MODEL_NEURAL_NETWORK,
-    MODEL_SVM,
-    MODEL_PCA,
-    MODEL_FEATURE_SELECTOR,
-    MODEL_GRADIENT_BOOSTING
-} ModelType;
-
-/**
- * Task type - determines default scoring metric
- */
-typedef enum {
-    TASK_REGRESSION,
-    TASK_CLASSIFICATION,
-    TASK_CLUSTERING,
-    TASK_TRANSFORMATION
-} TaskType;
-
-/**
- * Training history for iterative algorithms
- */
-typedef struct {
-    double *loss_history;      // Loss at each epoch
-    double *metric_history;    // Primary metric at each epoch
-    size_t n_epochs;           // Number of epochs recorded
-    size_t capacity;           // Allocated capacity
-    int converged;             // Whether training converged early
-    size_t best_epoch;         // Epoch with best validation score
-} TrainingHistory;
-
-/**
- * Callback function type for training progress
- * Called at the end of each epoch with current state
- */
-typedef void (*TrainingCallback)(
-    int epoch,
-    double loss,
-    double metric,
-    void *user_data
-);
-
-/**
- * Verbose level for training output
- */
-typedef enum {
-    VERBOSE_SILENT = 0,    // No output
-    VERBOSE_MINIMAL = 1,   // Only final result
-    VERBOSE_PROGRESS = 2,  // Progress bar / periodic updates
-    VERBOSE_DETAILED = 3   // Every epoch
-} VerboseLevel;
-
-/**
- * Base estimator structure - all models embed this
- */
-typedef struct Estimator {
-    ModelType type;
-    TaskType task;
-    int is_fitted;
-
-    // Virtual function table (polymorphism in C)
-    struct Estimator* (*fit)(struct Estimator *self, const Matrix *X, const Matrix *y);
-    Matrix* (*predict)(const struct Estimator *self, const Matrix *X);
-    Matrix* (*predict_proba)(const struct Estimator *self, const Matrix *X);
-    Matrix* (*transform)(const struct Estimator *self, const Matrix *X);
-    double (*score)(const struct Estimator *self, const Matrix *X, const Matrix *y);
-    struct Estimator* (*clone)(const struct Estimator *self);
-    void (*free)(struct Estimator *self);
-    int (*save)(const struct Estimator *self, const char *filename);
-    struct Estimator* (*load)(const char *filename);
-    void (*print_summary)(const struct Estimator *self);
-
-    // Training configuration
-    VerboseLevel verbose;
-    TrainingCallback callback;
-    void *callback_data;
-    TrainingHistory *history;
-
-    // Model-specific data follows this struct
-    void *model_data;
-} Estimator;
-
-/**
- * Training history management
- */
-TrainingHistory* training_history_alloc(size_t initial_capacity);
-void training_history_append(TrainingHistory *history, double loss, double metric);
-void training_history_free(TrainingHistory *history);
-void training_history_print(const TrainingHistory *history);
-int training_history_save_csv(const TrainingHistory *history, const char *filename);
-
-/**
- * Estimator utilities
- */
-
-// Check if model is fitted, return error message if not
-int estimator_check_fitted(const Estimator *est, const char *method_name);
-
-// Set verbose level
-void estimator_set_verbose(Estimator *est, VerboseLevel level);
-
-// Set training callback
-void estimator_set_callback(Estimator *est, TrainingCallback cb, void *user_data);
-
-// Get training history
-const TrainingHistory* estimator_get_history(const Estimator *est);
-
-// Clone estimator with same parameters but unfitted
-Estimator* estimator_clone(const Estimator *est);
-
-// Default score implementations
-double regression_score_r2(const Estimator *est, const Matrix *X, const Matrix *y);
-double classification_score_accuracy(const Estimator *est, const Matrix *X, const Matrix *y);
-
-/**
- * Verbose output helpers
- */
-void verbose_print_epoch(VerboseLevel level, int epoch, int total_epochs,
-                         double loss, double metric, const char *metric_name);
-void verbose_print_final(VerboseLevel level, const char *model_name,
-                         double final_metric, const char *metric_name, double elapsed_time);
-void verbose_print_progress_bar(int current, int total, int bar_width);
-
-
-
-/* --- cml_serialization.h --- */
-/**
- * cml_serialization.h - Shared serialization helpers for tinycml models
- *
- * Provides common binary format utilities for save/load:
- *   MAGIC (4 bytes: "CML\0")
- *   SUBTYPE (4 bytes: int)
- *   Model-specific data
- */
-
-
-#include <stdio.h>
-
-/* Magic bytes: "CML\0" */
-#define CML_SER_MAGIC_SIZE 4
-
-/* Model subtype IDs for distinguishing models sharing a ModelType */
-enum {
-    CML_SUB_LOGREG_BINARY     = 1,
-    CML_SUB_SOFTMAX           = 2,
-    CML_SUB_GAUSSIAN_NB       = 3,
-    CML_SUB_MULTINOMIAL_NB    = 4,
-    CML_SUB_LINEAR_SVC        = 5,
-    CML_SUB_SVM_CLASSIFIER    = 6,
-    CML_SUB_RIDGE             = 7,
-    CML_SUB_LASSO             = 8,
-    CML_SUB_DECISION_TREE_CLF = 9,
-};
-
-/** Write serialization header (magic + subtype). Returns 0 on success. */
-int cml_ser_write_header(FILE *f, int subtype);
-
-/** Read and verify serialization header. Returns 0 on success. */
-int cml_ser_check_header(FILE *f, int expected_subtype);
-
-/** Write a matrix in serialization format (rows, cols, data). */
-int cml_ser_write_matrix(FILE *f, const Matrix *m);
-
-/** Read a matrix from serialization format. Returns new matrix or NULL. */
-Matrix* cml_ser_read_matrix(FILE *f);
-
-/** Write an array of n doubles. */
-int cml_ser_write_doubles(FILE *f, const double *data, int n);
-
-/** Read an array of n doubles. */
-int cml_ser_read_doubles(FILE *f, double *data, int n);
-
-/** Write an array of n ints. */
-int cml_ser_write_ints(FILE *f, const int *data, int n);
-
-/** Read an array of n ints. */
-int cml_ser_read_ints(FILE *f, int *data, int n);
-
-/** Write a single double. */
-int cml_ser_write_double(FILE *f, double val);
-
-/** Read a single double. */
-int cml_ser_read_double(FILE *f, double *val);
-
-/** Write a single int. */
-int cml_ser_write_int(FILE *f, int val);
-
-/** Read a single int. */
-int cml_ser_read_int(FILE *f, int *val);
 
 
 
@@ -2331,6 +2331,83 @@ void layer_free(Layer *layer);
 
 
 
+/* --- sgd.h --- */
+/**
+ * sgd.h - Stochastic Gradient Descent classifier and regressor
+ *
+ * Linear models trained with SGD: supports log-loss (classification)
+ * and squared loss (regression). Scikit-learn compatible API.
+ */
+
+
+
+/**
+ * Loss function type
+ */
+typedef enum {
+    SGD_LOSS_SQUARED,       /* MSE for regression */
+    SGD_LOSS_LOG,           /* Log-loss for classification */
+    SGD_LOSS_HINGE,         /* SVM-style hinge loss */
+    SGD_LOSS_HUBER          /* Huber loss (robust regression) */
+} SGDLossType;
+
+/**
+ * SGD Classifier / Regressor model
+ */
+typedef struct {
+    Estimator base;
+
+    /* Hyperparameters */
+    SGDLossType loss;
+    double alpha;           /* L2 regularization strength */
+    double learning_rate;   /* Initial learning rate */
+    double eta0;            /* Constant learning rate (when lr=constant) */
+    int max_iter;           /* Maximum epochs */
+    double tol;             /* Early stopping tolerance (0 = disabled) */
+    int shuffle;            /* Shuffle data each epoch */
+    unsigned int seed;      /* Random seed */
+
+    /* Trained state */
+    double *weights;        /* Weight vector (n_features) */
+    double bias;            /* Intercept */
+    int n_features;         /* Number of features seen during fit */
+    int n_classes;          /* Number of classes (1=regression) */
+    int converged;          /* Whether early stopping triggered */
+} SGDModel;
+
+/**
+ * Create an SGD model
+ *
+ * @param loss     Loss function
+ * @param alpha    L2 regularization (default 0.0001)
+ * @param lr       Learning rate (default 0.01)
+ * @param max_iter Maximum epochs (default 1000)
+ * @return SGDModel instance
+ */
+SGDModel* sgd_create(SGDLossType loss, double alpha, double lr, int max_iter);
+
+/**
+ * Convenience: create SGD classifier with log loss
+ */
+SGDModel* sgd_classifier_create(double alpha, double lr, int max_iter);
+
+/**
+ * Convenience: create SGD regressor with squared loss
+ */
+SGDModel* sgd_regressor_create(double alpha, double lr, int max_iter);
+
+/* Estimator vtable functions */
+Estimator* sgd_fit(Estimator *self, const Matrix *X, const Matrix *y);
+Matrix* sgd_predict(const Estimator *self, const Matrix *X);
+Matrix* sgd_predict_proba(const Estimator *self, const Matrix *X);
+double sgd_score(const Estimator *self, const Matrix *X, const Matrix *y);
+Estimator* sgd_clone(const Estimator *self);
+void sgd_free(Estimator *self);
+int sgd_save(const Estimator *self, const char *path);
+Estimator* sgd_load(const char *path);
+
+
+
 /* --- validation.h --- */
 /**
  * validation.h - Cross-validation and model selection utilities
@@ -2928,6 +3005,238 @@ void random_forest_regressor_free(Estimator *self);
 
 
 
+/* --- gradient_boosting.h --- */
+/**
+ * gradient_boosting.h - Gradient Boosted Decision Trees (GBDT)
+ *
+ * Implements gradient boosting for:
+ * - Regression (MSE loss)
+ * - Binary classification (log-loss / cross-entropy)
+ * - Multi-class classification (softmax / one-vs-rest)
+ *
+ * Uses DecisionTree as weak learner (max_depth=3 default).
+ * Compatible with the Estimator vtable API.
+ */
+
+
+
+/**
+ * Gradient Boosting model
+ */
+typedef struct {
+    Estimator base;
+
+    /* Hyperparameters */
+    int n_estimators;           /* Number of boosting rounds (default: 100) */
+    double learning_rate;       /* Shrinkage factor (default: 0.1) */
+    int max_depth;              /* Max depth of each weak learner (default: 3) */
+    int min_samples_split;      /* Min samples to split (default: 2) */
+    double subsample;           /* Fraction of samples for stochastic GB (default: 1.0) */
+    unsigned int seed;          /* Random seed for subsampling */
+
+    /* Trained state */
+    DecisionTreeRegressor **trees;  /* Array of fitted trees */
+    double init_prediction;         /* Initial prediction (mean / log-odds) */
+    int n_classes;                  /* Number of classes (1 for regression, 2+ for classification) */
+    int n_features;                 /* Number of features seen during fit */
+} GradientBoosting;
+
+/* ============================================
+ * GradientBoosting API
+ * ============================================ */
+
+/**
+ * Create a GradientBoosting model
+ *
+ * @param n_estimators   Number of boosting rounds
+ * @param learning_rate  Shrinkage / step size
+ * @param max_depth      Max depth of each weak learner tree
+ * @param min_samples_split  Minimum samples to split
+ * @param subsample      Fraction of training samples per round (1.0 = full)
+ * @return GradientBoosting instance (wrapped as Estimator*)
+ */
+GradientBoosting* gradient_boosting_create(
+    int n_estimators,
+    double learning_rate,
+    int max_depth,
+    int min_samples_split,
+    double subsample
+);
+
+/**
+ * Fit (vtable entry)
+ */
+Estimator* gradient_boosting_fit(Estimator *self, const Matrix *X, const Matrix *y);
+
+/**
+ * Predict (vtable entry)
+ */
+Matrix* gradient_boosting_predict(const Estimator *self, const Matrix *X);
+
+/**
+ * Predict probabilities (vtable entry)
+ */
+Matrix* gradient_boosting_predict_proba(const Estimator *self, const Matrix *X);
+
+/**
+ * Score (vtable entry): R² for regression, accuracy for classification
+ */
+double gradient_boosting_score(const Estimator *self, const Matrix *X, const Matrix *y);
+
+/**
+ * Clone (vtable entry)
+ */
+Estimator* gradient_boosting_clone(const Estimator *self);
+
+/**
+ * Free (vtable entry)
+ */
+void gradient_boosting_free(Estimator *self);
+
+/**
+ * Save model to binary file
+ *
+ * @param self  Estimator pointer
+ * @param path  File path
+ * @return 0 on success, -1 on error
+ */
+int gradient_boosting_save(const Estimator *self, const char *path);
+
+/**
+ * Load model from binary file
+ *
+ * @param path  File path
+ * @return Estimator pointer on success, NULL on error
+ */
+Estimator* gradient_boosting_load(const char *path);
+
+
+
+/* --- isolation_forest.h --- */
+/**
+ * isolation_forest.h - Isolation Forest for anomaly detection
+ *
+ * Each tree isolates samples by randomly selecting a feature and split value.
+ * Anomalies have shorter average path lengths.
+ */
+
+
+
+/**
+ * Isolation Forest model
+ */
+typedef struct {
+    Estimator base;
+
+    /* Hyperparameters */
+    int n_trees;            /* Number of isolation trees (default: 100) */
+    int max_samples;        /* Subsample size per tree (0 = min(256, n_samples)) */
+    int max_depth;          /* Max tree depth (0 = ceil(log2(max_samples))) */
+    unsigned int seed;      /* Random seed */
+
+    /* Trained state */
+    void **trees;           /* Array of IsolationTree pointers */
+    int n_features;         /* Features seen during fit */
+    size_t n_train;         /* Training set size */
+    double *threshold;      /* Score threshold for anomaly (computed from training) */
+} IsolationForest;
+
+/**
+ * Create an Isolation Forest
+ *
+ * @param n_trees      Number of isolation trees
+ * @param max_samples  Subsample size per tree (0 = auto)
+ * @return IsolationForest instance
+ */
+IsolationForest* isolation_forest_create(int n_trees, int max_samples);
+
+/**
+ * Fit the Isolation Forest
+ */
+Estimator* isolation_forest_fit(Estimator *self, const Matrix *X, const Matrix *y);
+
+/**
+ * Predict: -1 for anomaly, 1 for normal
+ */
+Matrix* isolation_forest_predict(const Estimator *self, const Matrix *X);
+
+/**
+ * Score samples: anomaly score (higher = more anomalous)
+ * Returns n_samples x 1 matrix of scores
+ */
+Matrix* isolation_forest_score_samples(const Estimator *self, const Matrix *X);
+
+/**
+ * Score: fraction of correct predictions if y contains -1/1 labels
+ */
+double isolation_forest_score(const Estimator *self, const Matrix *X, const Matrix *y);
+
+Estimator* isolation_forest_clone(const Estimator *self);
+void isolation_forest_free(Estimator *self);
+
+
+
+/* --- agglomerative.h --- */
+/**
+ * agglomerative.h - Agglomerative (hierarchical) clustering
+ *
+ * Bottom-up clustering with single, complete, and average linkage.
+ */
+
+
+
+/**
+ * Linkage criterion
+ */
+typedef enum {
+    LINKAGE_SINGLE,     /* Minimum distance between clusters */
+    LINKAGE_COMPLETE,   /* Maximum distance between clusters */
+    LINKAGE_AVERAGE     /* Average distance between clusters */
+} LinkageType;
+
+/**
+ * Agglomerative Clustering model
+ */
+typedef struct {
+    Estimator base;
+
+    /* Hyperparameters */
+    int n_clusters;     /* Target number of clusters */
+    LinkageType linkage;
+
+    /* Trained state */
+    int *labels;        /* Cluster assignments for training data */
+    size_t n_samples;   /* Number of training samples */
+    int n_features;     /* Feature count */
+} AgglomerativeClustering;
+
+/**
+ * Create an Agglomerative Clustering model
+ *
+ * @param n_clusters  Number of target clusters
+ * @param linkage     Linkage criterion
+ * @return AgglomerativeClustering instance
+ */
+AgglomerativeClustering* agglomerative_create(int n_clusters, LinkageType linkage);
+
+/**
+ * Fit: compute hierarchical clustering
+ */
+Estimator* agglomerative_fit(Estimator *self, const Matrix *X, const Matrix *y);
+
+/**
+ * Predict: assign new points to nearest cluster centroid
+ */
+Matrix* agglomerative_predict(const Estimator *self, const Matrix *X);
+
+/* Score: silhouette score on training data */
+double agglomerative_score(const Estimator *self, const Matrix *X, const Matrix *y);
+
+Estimator* agglomerative_clone(const Estimator *self);
+void agglomerative_free(Estimator *self);
+
+
+
 /* --- model_selection.h --- */
 /**
  * model_selection.h - Model selection and hyperparameter tuning
@@ -3350,6 +3659,85 @@ Estimator* pipeline_get_estimator(Pipeline *pipe);
  */
 // Note: Variadic function not easily done in C without tricks
 // Instead, use pipeline_create() + pipeline_add_*()
+
+
+
+/* --- cml_simd.h --- */
+/**
+ * @file cml_simd.h
+ * @brief SIMD-accelerated hot-path operations for tinycml
+ *
+ * Provides NEON (aarch64), SSE2 (x86_64), and scalar fallback
+ * implementations of common linear-algebra primitives used
+ * throughout the library (dot products, distances, vector ops,
+ * matrix-vector multiply).
+ */
+
+
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Set to 1 when any SIMD path is compiled in, 0 for scalar fallback. */
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__SSE2__)
+#define CML_USE_SIMD 1
+#else
+#define CML_USE_SIMD 0
+#endif
+
+/**
+ * Compute the dot product of two vectors.
+ * @param a First vector (length n)
+ * @param b Second vector (length n)
+ * @param n Number of elements
+ * @return a · b
+ */
+double cml_simd_dot_product(const double *a, const double *b, size_t n);
+
+/**
+ * Compute the Euclidean (L2) distance between two vectors.
+ * @param a First vector (length n)
+ * @param b Second vector (length n)
+ * @param n Number of elements
+ * @return sqrt(sum((a_i - b_i)^2))
+ */
+double cml_simd_euclidean_distance(const double *a, const double *b, size_t n);
+
+/**
+ * Add two vectors element-wise: dst = a + b.
+ * @param dst Output vector (length n, may alias a or b)
+ * @param a First input vector
+ * @param b Second input vector
+ * @param n Number of elements
+ */
+void cml_simd_vec_add(double *dst, const double *a, const double *b, size_t n);
+
+/**
+ * Scale a vector by a scalar: dst = a * s.
+ * @param dst Output vector (length n, may alias a)
+ * @param a Input vector
+ * @param s Scalar multiplier
+ * @param n Number of elements
+ */
+void cml_simd_vec_scale(double *dst, const double *a, double s, size_t n);
+
+/**
+ * Matrix-vector multiplication: out = mat * vec.
+ * mat is stored row-major with `cols` columns.
+ * @param out   Output vector (length rows)
+ * @param mat   Matrix (rows × cols, row-major)
+ * @param vec   Input vector (length cols)
+ * @param rows  Number of rows in mat
+ * @param cols  Number of columns in mat
+ */
+void cml_simd_mat_vec_multiply(double *out, const double *mat,
+                               const double *vec, size_t rows, size_t cols);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 
@@ -4964,6 +5352,547 @@ double silhouette_score(const Matrix *X, const Matrix *labels, int n_clusters) {
 }
 
 
+/* --- estimator.c --- */
+/**
+ * estimator.c - Unified Estimator API implementation
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/**
+ * Training history management
+ */
+
+TrainingHistory* training_history_alloc(size_t initial_capacity) {
+    TrainingHistory *history = cml_malloc(sizeof(TrainingHistory));
+    if (!history) return NULL;
+
+    history->loss_history = cml_malloc(initial_capacity * sizeof(double));
+    history->metric_history = cml_malloc(initial_capacity * sizeof(double));
+
+    if (!history->loss_history || !history->metric_history) {
+        cml_free(history->loss_history);
+        cml_free(history->metric_history);
+        cml_free(history);
+        return NULL;
+    }
+
+    history->n_epochs = 0;
+    history->capacity = initial_capacity;
+    history->converged = 0;
+    history->best_epoch = 0;
+
+    return history;
+}
+
+void training_history_append(TrainingHistory *history, double loss, double metric) {
+    if (!history) return;
+
+    // Expand if needed
+    if (history->n_epochs >= history->capacity) {
+        size_t new_capacity = history->capacity * 2;
+        double *new_loss = cml_realloc(history->loss_history, new_capacity * sizeof(double));
+        double *new_metric = cml_realloc(history->metric_history, new_capacity * sizeof(double));
+
+        if (!new_loss || !new_metric) {
+            // Keep old arrays if realloc fails
+            return;
+        }
+
+        history->loss_history = new_loss;
+        history->metric_history = new_metric;
+        history->capacity = new_capacity;
+    }
+
+    history->loss_history[history->n_epochs] = loss;
+    history->metric_history[history->n_epochs] = metric;
+    history->n_epochs++;
+}
+
+void training_history_free(TrainingHistory *history) {
+    if (!history) return;
+    cml_free(history->loss_history);
+    cml_free(history->metric_history);
+    cml_free(history);
+}
+
+void training_history_print(const TrainingHistory *history) {
+    if (!history) {
+        printf("No training history available.\n");
+        return;
+    }
+
+    printf("Training History (%zu epochs):\n", history->n_epochs);
+    printf("%-10s %-15s %-15s\n", "Epoch", "Loss", "Metric");
+    printf("----------------------------------------\n");
+
+    // Print first 5, last 5 if too many
+    size_t print_limit = 10;
+    if (history->n_epochs <= print_limit) {
+        for (size_t i = 0; i < history->n_epochs; i++) {
+            printf("%-10zu %-15.6f %-15.6f\n",
+                   i + 1, history->loss_history[i], history->metric_history[i]);
+        }
+    } else {
+        for (size_t i = 0; i < 5; i++) {
+            printf("%-10zu %-15.6f %-15.6f\n",
+                   i + 1, history->loss_history[i], history->metric_history[i]);
+        }
+        printf("...        ...            ...\n");
+        for (size_t i = history->n_epochs - 5; i < history->n_epochs; i++) {
+            printf("%-10zu %-15.6f %-15.6f\n",
+                   i + 1, history->loss_history[i], history->metric_history[i]);
+        }
+    }
+
+    printf("----------------------------------------\n");
+    if (history->converged) {
+        printf("Converged at epoch %zu\n", history->best_epoch + 1);
+    }
+    printf("Final loss: %.6f, Final metric: %.6f\n",
+           history->loss_history[history->n_epochs - 1],
+           history->metric_history[history->n_epochs - 1]);
+}
+
+int training_history_save_csv(const TrainingHistory *history, const char *filename) {
+    if (!history || !filename) return -1;
+
+    FILE *f = fopen(filename, "w");
+    if (!f) return -1;
+
+    fprintf(f, "epoch,loss,metric\n");
+    for (size_t i = 0; i < history->n_epochs; i++) {
+        fprintf(f, "%zu,%.10f,%.10f\n",
+                i + 1, history->loss_history[i], history->metric_history[i]);
+    }
+
+    fclose(f);
+    return 0;
+}
+
+/**
+ * Estimator utilities
+ */
+
+int estimator_check_fitted(const Estimator *est, const char *method_name) {
+    if (!est) {
+        cml_set_error(CML_ERROR_NULL_PTR, "NULL estimator passed to %s", method_name);
+        return 0;
+    }
+    if (!est->is_fitted) {
+        cml_set_error(CML_ERROR_NOT_FITTED, "Estimator not fitted. Call fit() before %s", method_name);
+        return 0;
+    }
+    return 1;
+}
+
+void estimator_set_verbose(Estimator *est, VerboseLevel level) {
+    if (est) est->verbose = level;
+}
+
+void estimator_set_callback(Estimator *est, TrainingCallback cb, void *user_data) {
+    if (est) {
+        est->callback = cb;
+        est->callback_data = user_data;
+    }
+}
+
+const TrainingHistory* estimator_get_history(const Estimator *est) {
+    return est ? est->history : NULL;
+}
+
+Estimator* estimator_clone(const Estimator *est) {
+    if (!est || !est->clone) return NULL;
+    return est->clone(est);
+}
+
+/**
+ * Default score implementations
+ */
+
+double regression_score_r2(const Estimator *est, const Matrix *X, const Matrix *y) {
+    if (!estimator_check_fitted(est, "score")) return -1.0;
+    if (!est->predict) return -1.0;
+
+    Matrix *y_pred = est->predict(est, X);
+    if (!y_pred) return -1.0;
+
+    // R² = 1 - SS_res / SS_tot
+    double ss_res = 0.0;
+    double ss_tot = 0.0;
+    double y_mean = 0.0;
+
+    // Calculate mean
+    for (size_t i = 0; i < y->rows; i++) {
+        y_mean += matrix_get(y, i, 0);
+    }
+    y_mean /= y->rows;
+
+    // Calculate R²
+    for (size_t i = 0; i < y->rows; i++) {
+        double y_true = matrix_get(y, i, 0);
+        double y_hat = matrix_get(y_pred, i, 0);
+        ss_res += (y_true - y_hat) * (y_true - y_hat);
+        ss_tot += (y_true - y_mean) * (y_true - y_mean);
+    }
+
+    matrix_free(y_pred);
+
+    if (ss_tot == 0.0) return 0.0;  // Avoid division by zero
+    return 1.0 - (ss_res / ss_tot);
+}
+
+double classification_score_accuracy(const Estimator *est, const Matrix *X, const Matrix *y) {
+    if (!estimator_check_fitted(est, "score")) return -1.0;
+    if (!est->predict) return -1.0;
+
+    Matrix *y_pred = est->predict(est, X);
+    if (!y_pred) return -1.0;
+
+    double acc = accuracy(y, y_pred);
+    matrix_free(y_pred);
+
+    return acc;
+}
+
+/**
+ * Verbose output helpers
+ */
+
+void verbose_print_epoch(VerboseLevel level, int epoch, int total_epochs,
+                         double loss, double metric, const char *metric_name) {
+    if (level == VERBOSE_SILENT) return;
+
+    if (level == VERBOSE_DETAILED) {
+        printf("Epoch %d/%d - loss: %.6f - %s: %.6f\n",
+               epoch, total_epochs, loss, metric_name, metric);
+    } else if (level == VERBOSE_PROGRESS) {
+        // Print every 10% or every 100 epochs, whichever is smaller
+        int interval = total_epochs / 10;
+        if (interval < 1) interval = 1;
+        if (interval > 100) interval = 100;
+
+        if (epoch % interval == 0 || epoch == total_epochs) {
+            printf("Epoch %d/%d - loss: %.6f - %s: %.6f\n",
+                   epoch, total_epochs, loss, metric_name, metric);
+        }
+    }
+}
+
+void verbose_print_final(VerboseLevel level, const char *model_name,
+                         double final_metric, const char *metric_name, double elapsed_time) {
+    if (level == VERBOSE_SILENT) return;
+
+    printf("\n%s trained in %.3f seconds\n", model_name, elapsed_time);
+    printf("Final %s: %.6f\n", metric_name, final_metric);
+}
+
+void verbose_print_progress_bar(int current, int total, int bar_width) {
+    float progress = (float)current / total;
+    int filled = (int)(bar_width * progress);
+
+    printf("\r[");
+    for (int i = 0; i < bar_width; i++) {
+        if (i < filled) printf("=");
+        else if (i == filled) printf(">");
+        else printf(" ");
+    }
+    printf("] %d%%", (int)(progress * 100));
+    fflush(stdout);
+
+    if (current == total) printf("\n");
+}
+
+
+/* --- onehot_encoder.c --- */
+/**
+ * @file onehot_encoder.c
+ * @brief One-hot encoding transformer implementation
+ */
+
+#include <stdlib.h>
+#include <string.h>
+
+/* ============================================
+ * Public API
+ * ============================================ */
+
+OneHotEncoder* onehot_encoder_create(void) {
+    OneHotEncoder *enc = cml_calloc(1, sizeof(OneHotEncoder));
+    if (!enc) return NULL;
+
+    enc->n_features       = 0;
+    enc->n_categories     = NULL;
+    enc->categories_      = NULL;
+    enc->total_output_cols = 0;
+    enc->is_fitted        = 0;
+
+    return enc;
+}
+
+/* ============================================
+ * Internal helpers
+ * ============================================ */
+
+static void encoder_free_params(OneHotEncoder *enc) {
+    if (!enc) return;
+    if (enc->n_categories) {
+        cml_free(enc->n_categories);
+        enc->n_categories = NULL;
+    }
+    if (enc->categories_) {
+        for (int j = 0; j < enc->n_features; j++) {
+            cml_free(enc->categories_[j]);
+        }
+        cml_free(enc->categories_);
+        enc->categories_ = NULL;
+    }
+    enc->n_features = 0;
+    enc->total_output_cols = 0;
+    enc->is_fitted = 0;
+}
+
+/**
+ * Collect unique integer values from a column and sort them.
+ * Returns the count of unique values and fills *out_categories.
+ */
+static int collect_unique_categories(const Matrix *X, size_t col,
+                                      int **out_categories, int *out_count) {
+    size_t N = X->rows;
+    int *values = cml_malloc(N * sizeof(int));
+    if (!values) return -1;
+
+    /* Collect all values */
+    for (size_t i = 0; i < N; i++) {
+        values[i] = (int)X->data[i * X->cols + col];
+    }
+
+    /* Find unique values (simple O(n^2) approach) */
+    int *unique = cml_malloc(N * sizeof(int));
+    if (!unique) {
+        cml_free(values);
+        return -1;
+    }
+    int n_unique = 0;
+
+    for (size_t i = 0; i < N; i++) {
+        int found = 0;
+        for (int k = 0; k < n_unique; k++) {
+            if (unique[k] == values[i]) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            unique[n_unique++] = values[i];
+        }
+    }
+
+    /* Sort unique values (simple insertion sort — small arrays) */
+    for (int i = 1; i < n_unique; i++) {
+        int key = unique[i];
+        int j = i - 1;
+        while (j >= 0 && unique[j] > key) {
+            unique[j + 1] = unique[j];
+            j--;
+        }
+        unique[j + 1] = key;
+    }
+
+    /* Allocate exact-sized output */
+    *out_categories = cml_malloc(n_unique * sizeof(int));
+    if (!*out_categories) {
+        cml_free(values);
+        cml_free(unique);
+        return -1;
+    }
+    memcpy(*out_categories, unique, n_unique * sizeof(int));
+    *out_count = n_unique;
+
+    cml_free(values);
+    cml_free(unique);
+    return 0;
+}
+
+/* ============================================
+ * fit
+ * ============================================ */
+
+int onehot_encoder_fit(OneHotEncoder *encoder, const Matrix *X) {
+    if (!encoder || !X) return -1;
+
+    /* Free previous state */
+    encoder_free_params(encoder);
+
+    int F = (int)X->cols;
+    encoder->n_features = F;
+    encoder->n_categories = cml_calloc(F, sizeof(int));
+    encoder->categories_  = cml_calloc(F, sizeof(int*));
+
+    if (!encoder->n_categories || !encoder->categories_) {
+        encoder_free_params(encoder);
+        return -1;
+    }
+
+    encoder->total_output_cols = 0;
+
+    for (int j = 0; j < F; j++) {
+        if (collect_unique_categories(X, (size_t)j,
+                                       &encoder->categories_[j],
+                                       &encoder->n_categories[j]) != 0) {
+            encoder_free_params(encoder);
+            return -1;
+        }
+        encoder->total_output_cols += encoder->n_categories[j];
+    }
+
+    encoder->is_fitted = 1;
+    return 0;
+}
+
+/* ============================================
+ * transform
+ * ============================================ */
+
+Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X) {
+    if (!encoder || !X || !encoder->is_fitted) return NULL;
+    if ((int)X->cols != encoder->n_features) return NULL;
+
+    size_t N = X->rows;
+    int total_cols = encoder->total_output_cols;
+
+    Matrix *result = matrix_alloc(N, (size_t)total_cols);
+    if (!result) return NULL;
+
+    /* Initialize all to 0.0 (matrix_alloc uses calloc-style zero init via its implementation) */
+    /* matrix_alloc may or may not zero-init — explicitly fill */
+    for (size_t i = 0; i < N * (size_t)total_cols; i++) {
+        result->data[i] = 0.0;
+    }
+
+    for (size_t i = 0; i < N; i++) {
+        int col_offset = 0;
+        for (int j = 0; j < encoder->n_features; j++) {
+            int val = (int)X->data[i * X->cols + j];
+            int n_cats = encoder->n_categories[j];
+
+            /* Find the index of this value in the category list */
+            int found_idx = -1;
+            for (int k = 0; k < n_cats; k++) {
+                if (encoder->categories_[j][k] == val) {
+                    found_idx = k;
+                    break;
+                }
+            }
+
+            if (found_idx >= 0) {
+                result->data[i * (size_t)total_cols + col_offset + found_idx] = 1.0;
+            }
+
+            col_offset += n_cats;
+        }
+    }
+
+    return result;
+}
+
+/* ============================================
+ * free
+ * ============================================ */
+
+void onehot_encoder_free(OneHotEncoder *encoder) {
+    if (encoder) {
+        encoder_free_params(encoder);
+        cml_free(encoder);
+    }
+}
+
+
+/* --- cml_serialization.c --- */
+/**
+ * cml_serialization.c - Shared serialization helpers
+ */
+
+#include <string.h>
+
+static const char cml_ser_magic[4] = {'C', 'M', 'L', '\0'};
+
+int cml_ser_write_header(FILE *f, int subtype) {
+    if (fwrite(cml_ser_magic, 1, CML_SER_MAGIC_SIZE, f) != CML_SER_MAGIC_SIZE) return -1;
+    if (fwrite(&subtype, sizeof(int), 1, f) != 1) return -1;
+    return 0;
+}
+
+int cml_ser_check_header(FILE *f, int expected_subtype) {
+    char magic[4];
+    if (fread(magic, 1, CML_SER_MAGIC_SIZE, f) != CML_SER_MAGIC_SIZE) return -1;
+    if (memcmp(magic, cml_ser_magic, 4) != 0) return -1;
+    int subtype;
+    if (fread(&subtype, sizeof(int), 1, f) != 1) return -1;
+    if (subtype != expected_subtype) return -1;
+    return 0;
+}
+
+int cml_ser_write_matrix(FILE *f, const Matrix *m) {
+    int rows = (int)m->rows;
+    int cols = (int)m->cols;
+    if (fwrite(&rows, sizeof(int), 1, f) != 1) return -1;
+    if (fwrite(&cols, sizeof(int), 1, f) != 1) return -1;
+    size_t total = m->rows * m->cols;
+    if (fwrite(m->data, sizeof(double), total, f) != total) return -1;
+    return 0;
+}
+
+Matrix* cml_ser_read_matrix(FILE *f) {
+    int rows, cols;
+    if (fread(&rows, sizeof(int), 1, f) != 1) return NULL;
+    if (fread(&cols, sizeof(int), 1, f) != 1) return NULL;
+    Matrix *m = matrix_alloc((size_t)rows, (size_t)cols);
+    if (!m) return NULL;
+    size_t total = (size_t)rows * (size_t)cols;
+    if (fread(m->data, sizeof(double), total, f) != total) {
+        matrix_free(m);
+        return NULL;
+    }
+    return m;
+}
+
+int cml_ser_write_doubles(FILE *f, const double *data, int n) {
+    return fwrite(data, sizeof(double), (size_t)n, f) == (size_t)n ? 0 : -1;
+}
+
+int cml_ser_read_doubles(FILE *f, double *data, int n) {
+    return fread(data, sizeof(double), (size_t)n, f) == (size_t)n ? 0 : -1;
+}
+
+int cml_ser_write_ints(FILE *f, const int *data, int n) {
+    return fwrite(data, sizeof(int), (size_t)n, f) == (size_t)n ? 0 : -1;
+}
+
+int cml_ser_read_ints(FILE *f, int *data, int n) {
+    return fread(data, sizeof(int), (size_t)n, f) == (size_t)n ? 0 : -1;
+}
+
+int cml_ser_write_double(FILE *f, double val) {
+    return fwrite(&val, sizeof(double), 1, f) == 1 ? 0 : -1;
+}
+
+int cml_ser_read_double(FILE *f, double *val) {
+    return fread(val, sizeof(double), 1, f) == 1 ? 0 : -1;
+}
+
+int cml_ser_write_int(FILE *f, int val) {
+    return fwrite(&val, sizeof(int), 1, f) == 1 ? 0 : -1;
+}
+
+int cml_ser_read_int(FILE *f, int *val) {
+    return fread(val, sizeof(int), 1, f) == 1 ? 0 : -1;
+}
+
+
 /* --- kmeans.c --- */
 /**
  * @file kmeans.c
@@ -5780,547 +6709,6 @@ void knn_free(KNNModel *model) {
         matrix_free(model->y_train);
         cml_free(model);
     }
-}
-
-
-/* --- onehot_encoder.c --- */
-/**
- * @file onehot_encoder.c
- * @brief One-hot encoding transformer implementation
- */
-
-#include <stdlib.h>
-#include <string.h>
-
-/* ============================================
- * Public API
- * ============================================ */
-
-OneHotEncoder* onehot_encoder_create(void) {
-    OneHotEncoder *enc = cml_calloc(1, sizeof(OneHotEncoder));
-    if (!enc) return NULL;
-
-    enc->n_features       = 0;
-    enc->n_categories     = NULL;
-    enc->categories_      = NULL;
-    enc->total_output_cols = 0;
-    enc->is_fitted        = 0;
-
-    return enc;
-}
-
-/* ============================================
- * Internal helpers
- * ============================================ */
-
-static void encoder_free_params(OneHotEncoder *enc) {
-    if (!enc) return;
-    if (enc->n_categories) {
-        cml_free(enc->n_categories);
-        enc->n_categories = NULL;
-    }
-    if (enc->categories_) {
-        for (int j = 0; j < enc->n_features; j++) {
-            cml_free(enc->categories_[j]);
-        }
-        cml_free(enc->categories_);
-        enc->categories_ = NULL;
-    }
-    enc->n_features = 0;
-    enc->total_output_cols = 0;
-    enc->is_fitted = 0;
-}
-
-/**
- * Collect unique integer values from a column and sort them.
- * Returns the count of unique values and fills *out_categories.
- */
-static int collect_unique_categories(const Matrix *X, size_t col,
-                                      int **out_categories, int *out_count) {
-    size_t N = X->rows;
-    int *values = cml_malloc(N * sizeof(int));
-    if (!values) return -1;
-
-    /* Collect all values */
-    for (size_t i = 0; i < N; i++) {
-        values[i] = (int)X->data[i * X->cols + col];
-    }
-
-    /* Find unique values (simple O(n^2) approach) */
-    int *unique = cml_malloc(N * sizeof(int));
-    if (!unique) {
-        cml_free(values);
-        return -1;
-    }
-    int n_unique = 0;
-
-    for (size_t i = 0; i < N; i++) {
-        int found = 0;
-        for (int k = 0; k < n_unique; k++) {
-            if (unique[k] == values[i]) {
-                found = 1;
-                break;
-            }
-        }
-        if (!found) {
-            unique[n_unique++] = values[i];
-        }
-    }
-
-    /* Sort unique values (simple insertion sort — small arrays) */
-    for (int i = 1; i < n_unique; i++) {
-        int key = unique[i];
-        int j = i - 1;
-        while (j >= 0 && unique[j] > key) {
-            unique[j + 1] = unique[j];
-            j--;
-        }
-        unique[j + 1] = key;
-    }
-
-    /* Allocate exact-sized output */
-    *out_categories = cml_malloc(n_unique * sizeof(int));
-    if (!*out_categories) {
-        cml_free(values);
-        cml_free(unique);
-        return -1;
-    }
-    memcpy(*out_categories, unique, n_unique * sizeof(int));
-    *out_count = n_unique;
-
-    cml_free(values);
-    cml_free(unique);
-    return 0;
-}
-
-/* ============================================
- * fit
- * ============================================ */
-
-int onehot_encoder_fit(OneHotEncoder *encoder, const Matrix *X) {
-    if (!encoder || !X) return -1;
-
-    /* Free previous state */
-    encoder_free_params(encoder);
-
-    int F = (int)X->cols;
-    encoder->n_features = F;
-    encoder->n_categories = cml_calloc(F, sizeof(int));
-    encoder->categories_  = cml_calloc(F, sizeof(int*));
-
-    if (!encoder->n_categories || !encoder->categories_) {
-        encoder_free_params(encoder);
-        return -1;
-    }
-
-    encoder->total_output_cols = 0;
-
-    for (int j = 0; j < F; j++) {
-        if (collect_unique_categories(X, (size_t)j,
-                                       &encoder->categories_[j],
-                                       &encoder->n_categories[j]) != 0) {
-            encoder_free_params(encoder);
-            return -1;
-        }
-        encoder->total_output_cols += encoder->n_categories[j];
-    }
-
-    encoder->is_fitted = 1;
-    return 0;
-}
-
-/* ============================================
- * transform
- * ============================================ */
-
-Matrix* onehot_encoder_transform(const OneHotEncoder *encoder, const Matrix *X) {
-    if (!encoder || !X || !encoder->is_fitted) return NULL;
-    if ((int)X->cols != encoder->n_features) return NULL;
-
-    size_t N = X->rows;
-    int total_cols = encoder->total_output_cols;
-
-    Matrix *result = matrix_alloc(N, (size_t)total_cols);
-    if (!result) return NULL;
-
-    /* Initialize all to 0.0 (matrix_alloc uses calloc-style zero init via its implementation) */
-    /* matrix_alloc may or may not zero-init — explicitly fill */
-    for (size_t i = 0; i < N * (size_t)total_cols; i++) {
-        result->data[i] = 0.0;
-    }
-
-    for (size_t i = 0; i < N; i++) {
-        int col_offset = 0;
-        for (int j = 0; j < encoder->n_features; j++) {
-            int val = (int)X->data[i * X->cols + j];
-            int n_cats = encoder->n_categories[j];
-
-            /* Find the index of this value in the category list */
-            int found_idx = -1;
-            for (int k = 0; k < n_cats; k++) {
-                if (encoder->categories_[j][k] == val) {
-                    found_idx = k;
-                    break;
-                }
-            }
-
-            if (found_idx >= 0) {
-                result->data[i * (size_t)total_cols + col_offset + found_idx] = 1.0;
-            }
-
-            col_offset += n_cats;
-        }
-    }
-
-    return result;
-}
-
-/* ============================================
- * free
- * ============================================ */
-
-void onehot_encoder_free(OneHotEncoder *encoder) {
-    if (encoder) {
-        encoder_free_params(encoder);
-        cml_free(encoder);
-    }
-}
-
-
-/* --- estimator.c --- */
-/**
- * estimator.c - Unified Estimator API implementation
- */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-/**
- * Training history management
- */
-
-TrainingHistory* training_history_alloc(size_t initial_capacity) {
-    TrainingHistory *history = cml_malloc(sizeof(TrainingHistory));
-    if (!history) return NULL;
-
-    history->loss_history = cml_malloc(initial_capacity * sizeof(double));
-    history->metric_history = cml_malloc(initial_capacity * sizeof(double));
-
-    if (!history->loss_history || !history->metric_history) {
-        cml_free(history->loss_history);
-        cml_free(history->metric_history);
-        cml_free(history);
-        return NULL;
-    }
-
-    history->n_epochs = 0;
-    history->capacity = initial_capacity;
-    history->converged = 0;
-    history->best_epoch = 0;
-
-    return history;
-}
-
-void training_history_append(TrainingHistory *history, double loss, double metric) {
-    if (!history) return;
-
-    // Expand if needed
-    if (history->n_epochs >= history->capacity) {
-        size_t new_capacity = history->capacity * 2;
-        double *new_loss = cml_realloc(history->loss_history, new_capacity * sizeof(double));
-        double *new_metric = cml_realloc(history->metric_history, new_capacity * sizeof(double));
-
-        if (!new_loss || !new_metric) {
-            // Keep old arrays if realloc fails
-            return;
-        }
-
-        history->loss_history = new_loss;
-        history->metric_history = new_metric;
-        history->capacity = new_capacity;
-    }
-
-    history->loss_history[history->n_epochs] = loss;
-    history->metric_history[history->n_epochs] = metric;
-    history->n_epochs++;
-}
-
-void training_history_free(TrainingHistory *history) {
-    if (!history) return;
-    cml_free(history->loss_history);
-    cml_free(history->metric_history);
-    cml_free(history);
-}
-
-void training_history_print(const TrainingHistory *history) {
-    if (!history) {
-        printf("No training history available.\n");
-        return;
-    }
-
-    printf("Training History (%zu epochs):\n", history->n_epochs);
-    printf("%-10s %-15s %-15s\n", "Epoch", "Loss", "Metric");
-    printf("----------------------------------------\n");
-
-    // Print first 5, last 5 if too many
-    size_t print_limit = 10;
-    if (history->n_epochs <= print_limit) {
-        for (size_t i = 0; i < history->n_epochs; i++) {
-            printf("%-10zu %-15.6f %-15.6f\n",
-                   i + 1, history->loss_history[i], history->metric_history[i]);
-        }
-    } else {
-        for (size_t i = 0; i < 5; i++) {
-            printf("%-10zu %-15.6f %-15.6f\n",
-                   i + 1, history->loss_history[i], history->metric_history[i]);
-        }
-        printf("...        ...            ...\n");
-        for (size_t i = history->n_epochs - 5; i < history->n_epochs; i++) {
-            printf("%-10zu %-15.6f %-15.6f\n",
-                   i + 1, history->loss_history[i], history->metric_history[i]);
-        }
-    }
-
-    printf("----------------------------------------\n");
-    if (history->converged) {
-        printf("Converged at epoch %zu\n", history->best_epoch + 1);
-    }
-    printf("Final loss: %.6f, Final metric: %.6f\n",
-           history->loss_history[history->n_epochs - 1],
-           history->metric_history[history->n_epochs - 1]);
-}
-
-int training_history_save_csv(const TrainingHistory *history, const char *filename) {
-    if (!history || !filename) return -1;
-
-    FILE *f = fopen(filename, "w");
-    if (!f) return -1;
-
-    fprintf(f, "epoch,loss,metric\n");
-    for (size_t i = 0; i < history->n_epochs; i++) {
-        fprintf(f, "%zu,%.10f,%.10f\n",
-                i + 1, history->loss_history[i], history->metric_history[i]);
-    }
-
-    fclose(f);
-    return 0;
-}
-
-/**
- * Estimator utilities
- */
-
-int estimator_check_fitted(const Estimator *est, const char *method_name) {
-    if (!est) {
-        cml_set_error(CML_ERROR_NULL_PTR, "NULL estimator passed to %s", method_name);
-        return 0;
-    }
-    if (!est->is_fitted) {
-        cml_set_error(CML_ERROR_NOT_FITTED, "Estimator not fitted. Call fit() before %s", method_name);
-        return 0;
-    }
-    return 1;
-}
-
-void estimator_set_verbose(Estimator *est, VerboseLevel level) {
-    if (est) est->verbose = level;
-}
-
-void estimator_set_callback(Estimator *est, TrainingCallback cb, void *user_data) {
-    if (est) {
-        est->callback = cb;
-        est->callback_data = user_data;
-    }
-}
-
-const TrainingHistory* estimator_get_history(const Estimator *est) {
-    return est ? est->history : NULL;
-}
-
-Estimator* estimator_clone(const Estimator *est) {
-    if (!est || !est->clone) return NULL;
-    return est->clone(est);
-}
-
-/**
- * Default score implementations
- */
-
-double regression_score_r2(const Estimator *est, const Matrix *X, const Matrix *y) {
-    if (!estimator_check_fitted(est, "score")) return -1.0;
-    if (!est->predict) return -1.0;
-
-    Matrix *y_pred = est->predict(est, X);
-    if (!y_pred) return -1.0;
-
-    // R² = 1 - SS_res / SS_tot
-    double ss_res = 0.0;
-    double ss_tot = 0.0;
-    double y_mean = 0.0;
-
-    // Calculate mean
-    for (size_t i = 0; i < y->rows; i++) {
-        y_mean += matrix_get(y, i, 0);
-    }
-    y_mean /= y->rows;
-
-    // Calculate R²
-    for (size_t i = 0; i < y->rows; i++) {
-        double y_true = matrix_get(y, i, 0);
-        double y_hat = matrix_get(y_pred, i, 0);
-        ss_res += (y_true - y_hat) * (y_true - y_hat);
-        ss_tot += (y_true - y_mean) * (y_true - y_mean);
-    }
-
-    matrix_free(y_pred);
-
-    if (ss_tot == 0.0) return 0.0;  // Avoid division by zero
-    return 1.0 - (ss_res / ss_tot);
-}
-
-double classification_score_accuracy(const Estimator *est, const Matrix *X, const Matrix *y) {
-    if (!estimator_check_fitted(est, "score")) return -1.0;
-    if (!est->predict) return -1.0;
-
-    Matrix *y_pred = est->predict(est, X);
-    if (!y_pred) return -1.0;
-
-    double acc = accuracy(y, y_pred);
-    matrix_free(y_pred);
-
-    return acc;
-}
-
-/**
- * Verbose output helpers
- */
-
-void verbose_print_epoch(VerboseLevel level, int epoch, int total_epochs,
-                         double loss, double metric, const char *metric_name) {
-    if (level == VERBOSE_SILENT) return;
-
-    if (level == VERBOSE_DETAILED) {
-        printf("Epoch %d/%d - loss: %.6f - %s: %.6f\n",
-               epoch, total_epochs, loss, metric_name, metric);
-    } else if (level == VERBOSE_PROGRESS) {
-        // Print every 10% or every 100 epochs, whichever is smaller
-        int interval = total_epochs / 10;
-        if (interval < 1) interval = 1;
-        if (interval > 100) interval = 100;
-
-        if (epoch % interval == 0 || epoch == total_epochs) {
-            printf("Epoch %d/%d - loss: %.6f - %s: %.6f\n",
-                   epoch, total_epochs, loss, metric_name, metric);
-        }
-    }
-}
-
-void verbose_print_final(VerboseLevel level, const char *model_name,
-                         double final_metric, const char *metric_name, double elapsed_time) {
-    if (level == VERBOSE_SILENT) return;
-
-    printf("\n%s trained in %.3f seconds\n", model_name, elapsed_time);
-    printf("Final %s: %.6f\n", metric_name, final_metric);
-}
-
-void verbose_print_progress_bar(int current, int total, int bar_width) {
-    float progress = (float)current / total;
-    int filled = (int)(bar_width * progress);
-
-    printf("\r[");
-    for (int i = 0; i < bar_width; i++) {
-        if (i < filled) printf("=");
-        else if (i == filled) printf(">");
-        else printf(" ");
-    }
-    printf("] %d%%", (int)(progress * 100));
-    fflush(stdout);
-
-    if (current == total) printf("\n");
-}
-
-
-/* --- cml_serialization.c --- */
-/**
- * cml_serialization.c - Shared serialization helpers
- */
-
-#include <string.h>
-
-static const char cml_ser_magic[4] = {'C', 'M', 'L', '\0'};
-
-int cml_ser_write_header(FILE *f, int subtype) {
-    if (fwrite(cml_ser_magic, 1, CML_SER_MAGIC_SIZE, f) != CML_SER_MAGIC_SIZE) return -1;
-    if (fwrite(&subtype, sizeof(int), 1, f) != 1) return -1;
-    return 0;
-}
-
-int cml_ser_check_header(FILE *f, int expected_subtype) {
-    char magic[4];
-    if (fread(magic, 1, CML_SER_MAGIC_SIZE, f) != CML_SER_MAGIC_SIZE) return -1;
-    if (memcmp(magic, cml_ser_magic, 4) != 0) return -1;
-    int subtype;
-    if (fread(&subtype, sizeof(int), 1, f) != 1) return -1;
-    if (subtype != expected_subtype) return -1;
-    return 0;
-}
-
-int cml_ser_write_matrix(FILE *f, const Matrix *m) {
-    int rows = (int)m->rows;
-    int cols = (int)m->cols;
-    if (fwrite(&rows, sizeof(int), 1, f) != 1) return -1;
-    if (fwrite(&cols, sizeof(int), 1, f) != 1) return -1;
-    size_t total = m->rows * m->cols;
-    if (fwrite(m->data, sizeof(double), total, f) != total) return -1;
-    return 0;
-}
-
-Matrix* cml_ser_read_matrix(FILE *f) {
-    int rows, cols;
-    if (fread(&rows, sizeof(int), 1, f) != 1) return NULL;
-    if (fread(&cols, sizeof(int), 1, f) != 1) return NULL;
-    Matrix *m = matrix_alloc((size_t)rows, (size_t)cols);
-    if (!m) return NULL;
-    size_t total = (size_t)rows * (size_t)cols;
-    if (fread(m->data, sizeof(double), total, f) != total) {
-        matrix_free(m);
-        return NULL;
-    }
-    return m;
-}
-
-int cml_ser_write_doubles(FILE *f, const double *data, int n) {
-    return fwrite(data, sizeof(double), (size_t)n, f) == (size_t)n ? 0 : -1;
-}
-
-int cml_ser_read_doubles(FILE *f, double *data, int n) {
-    return fread(data, sizeof(double), (size_t)n, f) == (size_t)n ? 0 : -1;
-}
-
-int cml_ser_write_ints(FILE *f, const int *data, int n) {
-    return fwrite(data, sizeof(int), (size_t)n, f) == (size_t)n ? 0 : -1;
-}
-
-int cml_ser_read_ints(FILE *f, int *data, int n) {
-    return fread(data, sizeof(int), (size_t)n, f) == (size_t)n ? 0 : -1;
-}
-
-int cml_ser_write_double(FILE *f, double val) {
-    return fwrite(&val, sizeof(double), 1, f) == 1 ? 0 : -1;
-}
-
-int cml_ser_read_double(FILE *f, double *val) {
-    return fread(val, sizeof(double), 1, f) == 1 ? 0 : -1;
-}
-
-int cml_ser_write_int(FILE *f, int val) {
-    return fwrite(&val, sizeof(int), 1, f) == 1 ? 0 : -1;
-}
-
-int cml_ser_read_int(FILE *f, int *val) {
-    return fread(val, sizeof(int), 1, f) == 1 ? 0 : -1;
 }
 
 
@@ -11681,6 +12069,394 @@ MLPRegressor* mlp_regressor_create(const int *hidden_layer_sizes, int n_hidden) 
 }
 
 
+/* --- sgd.c --- */
+/**
+ * sgd.c - Stochastic Gradient Descent classifier and regressor
+ *
+ * Linear model trained with mini-batch SGD. Supports:
+ * - Squared loss (regression)
+ * - Log loss (binary classification)
+ * - Hinge loss (SVM-style)
+ * - Huber loss (robust regression)
+ */
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ── helpers ─────────────────────────────────────────────────────── */
+
+static double sgd_sigmoid(double x) {
+    if (x > 500.0) return 1.0;
+    if (x < -500.0) return 0.0;
+    return 1.0 / (1.0 + exp(-x));
+}
+
+static unsigned int sgd_rand(unsigned int *s) {
+    *s ^= *s << 13;
+    *s ^= *s >> 17;
+    *s ^= *s << 5;
+    return *s;
+}
+
+/* Fisher-Yates shuffle */
+static void sgd_shuffle_indices(size_t *arr, size_t n, unsigned int *seed) {
+    for (size_t i = n - 1; i > 0; i--) {
+        size_t j = sgd_rand(seed) % (i + 1);
+        size_t tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
+/* ── create / free ───────────────────────────────────────────────── */
+
+SGDModel* sgd_create(SGDLossType loss, double alpha, double lr, int max_iter) {
+    SGDModel *m = cml_calloc(1, sizeof(SGDModel));
+    if (!m) return NULL;
+
+    m->loss          = loss;
+    m->alpha         = alpha > 0 ? alpha : 0.0001;
+    m->learning_rate = lr > 0 ? lr : 0.01;
+    m->eta0          = m->learning_rate;
+    m->max_iter      = max_iter > 0 ? max_iter : 1000;
+    m->tol           = 1e-6;
+    m->shuffle       = 1;
+    m->seed          = (unsigned int)time(NULL) ^ 0x5DDBEEF;
+
+    m->weights       = NULL;
+    m->bias          = 0.0;
+    m->n_features    = 0;
+    m->n_classes     = 0;
+    m->converged     = 0;
+
+    m->base.fit          = sgd_fit;
+    m->base.predict      = sgd_predict;
+    m->base.predict_proba = sgd_predict_proba;
+    m->base.score        = sgd_score;
+    m->base.clone        = sgd_clone;
+    m->base.free         = sgd_free;
+    m->base.type         = MODEL_LINEAR_REGRESSION;
+
+    return m;
+}
+
+SGDModel* sgd_classifier_create(double alpha, double lr, int max_iter) {
+    return sgd_create(SGD_LOSS_LOG, alpha, lr, max_iter);
+}
+
+SGDModel* sgd_regressor_create(double alpha, double lr, int max_iter) {
+    return sgd_create(SGD_LOSS_SQUARED, alpha, lr, max_iter);
+}
+
+void sgd_free(Estimator *self) {
+    if (!self) return;
+    SGDModel *m = (SGDModel*)self;
+    cml_free(m->weights);
+    cml_free(m);
+}
+
+/* ── fit ─────────────────────────────────────────────────────────── */
+
+Estimator* sgd_fit(Estimator *self, const Matrix *X, const Matrix *y) {
+    if (!self || !X || !y || X->rows != y->rows) return NULL;
+
+    SGDModel *m = (SGDModel*)self;
+    size_t n = X->rows;
+    size_t d = X->cols;
+    m->n_features = (int)d;
+
+    /* Determine classes */
+    int max_label = 0;
+    for (size_t i = 0; i < n; i++) {
+        int lbl = (int)y->data[i];
+        if (lbl > max_label) max_label = lbl;
+    }
+    m->n_classes = (m->loss == SGD_LOSS_SQUARED || m->loss == SGD_LOSS_HUBER)
+                   ? 1 : max_label + 1;
+
+    /* Initialize weights */
+    m->weights = cml_calloc(d, sizeof(double));
+    if (!m->weights) return NULL;
+    m->bias = 0.0;
+
+    /* Allocate index array for shuffling */
+    size_t *indices = cml_malloc(n * sizeof(size_t));
+    if (!indices) return NULL;
+    for (size_t i = 0; i < n; i++) indices[i] = i;
+
+    double prev_loss = 1e18;
+
+    for (int epoch = 0; epoch < m->max_iter; epoch++) {
+        if (m->shuffle) {
+            sgd_shuffle_indices(indices, n, &m->seed);
+        }
+
+        double epoch_loss = 0.0;
+
+        /* Learning rate schedule: inverse scaling */
+        double lr = m->eta0 / (1.0 + m->alpha * epoch);
+
+        for (size_t idx = 0; idx < n; idx++) {
+            size_t i = indices[idx];
+
+            /* Compute prediction: z = w^T x + b */
+            double z = m->bias;
+            for (size_t j = 0; j < d; j++) {
+                z += m->weights[j] * matrix_get(X, i, j);
+            }
+
+            double yi = y->data[i];
+            double grad = 0.0;
+
+            switch (m->loss) {
+                case SGD_LOSS_SQUARED: {
+                    /* grad = (pred - y) */
+                    grad = z - yi;
+                    epoch_loss += grad * grad;
+                    break;
+                }
+                case SGD_LOSS_LOG: {
+                    /* Binary: grad = sigmoid(z) - y */
+                    double prob = sgd_sigmoid(z);
+                    grad = prob - yi;
+                    double loss_val = (yi > 0.5) ? -log(prob + 1e-15) : -log(1.0 - prob + 1e-15);
+                    epoch_loss += loss_val;
+                    break;
+                }
+                case SGD_LOSS_HINGE: {
+                    /* max(0, 1 - y*z) where y in {-1, +1} */
+                    double y_pm = (yi > 0.5) ? 1.0 : -1.0;
+                    double margin = y_pm * z;
+                    if (margin < 1.0) {
+                        grad = -y_pm;
+                        epoch_loss += 1.0 - margin;
+                    }
+                    break;
+                }
+                case SGD_LOSS_HUBER: {
+                    double diff = z - yi;
+                    double delta = 1.0;
+                    if (fabs(diff) <= delta) {
+                        grad = diff;
+                        epoch_loss += 0.5 * diff * diff;
+                    } else {
+                        grad = (diff > 0 ? delta : -delta);
+                        epoch_loss += delta * (fabs(diff) - 0.5 * delta);
+                    }
+                    break;
+                }
+            }
+
+            /* Update weights: w -= lr * (grad + alpha * w) */
+            for (size_t j = 0; j < d; j++) {
+                double xij = matrix_get(X, i, j);
+                m->weights[j] -= lr * (grad * xij + m->alpha * m->weights[j]);
+            }
+            m->bias -= lr * grad;
+        }
+
+        epoch_loss /= (double)n;
+
+        /* Early stopping */
+        if (m->tol > 0 && fabs(prev_loss - epoch_loss) < m->tol) {
+            m->converged = 1;
+            break;
+        }
+        prev_loss = epoch_loss;
+    }
+
+    cml_free(indices);
+    return self;
+}
+
+/* ── predict ─────────────────────────────────────────────────────── */
+
+Matrix* sgd_predict(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    SGDModel *m = (SGDModel*)self;
+
+    size_t n = X->rows;
+    Matrix *out = matrix_alloc(n, 1);
+    if (!out) return NULL;
+
+    int is_cls = (m->loss == SGD_LOSS_LOG || m->loss == SGD_LOSS_HINGE);
+
+    for (size_t i = 0; i < n; i++) {
+        double z = m->bias;
+        for (size_t j = 0; j < (size_t)m->n_features; j++) {
+            z += m->weights[j] * matrix_get(X, i, j);
+        }
+
+        if (is_cls) {
+            out->data[i] = sgd_sigmoid(z) >= 0.5 ? 1.0 : 0.0;
+        } else {
+            out->data[i] = z;
+        }
+    }
+
+    return out;
+}
+
+/* ── predict_proba ───────────────────────────────────────────────── */
+
+Matrix* sgd_predict_proba(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    SGDModel *m = (SGDModel*)self;
+
+    int is_cls = (m->loss == SGD_LOSS_LOG || m->loss == SGD_LOSS_HINGE);
+    if (!is_cls) return sgd_predict(self, X);
+
+    size_t n = X->rows;
+    Matrix *out = matrix_alloc(n, 2);
+    if (!out) return NULL;
+
+    for (size_t i = 0; i < n; i++) {
+        double z = m->bias;
+        for (size_t j = 0; j < (size_t)m->n_features; j++) {
+            z += m->weights[j] * matrix_get(X, i, j);
+        }
+        double p1 = sgd_sigmoid(z);
+        matrix_set(out, i, 0, 1.0 - p1);
+        matrix_set(out, i, 1, p1);
+    }
+
+    return out;
+}
+
+/* ── score ───────────────────────────────────────────────────────── */
+
+double sgd_score(const Estimator *self, const Matrix *X, const Matrix *y) {
+    if (!self || !X || !y) return -1.0;
+    SGDModel *m = (SGDModel*)self;
+
+    Matrix *pred = sgd_predict(self, X);
+    if (!pred) return -1.0;
+
+    int is_cls = (m->loss == SGD_LOSS_LOG || m->loss == SGD_LOSS_HINGE);
+
+    double result;
+    if (is_cls) {
+        size_t correct = 0;
+        for (size_t i = 0; i < y->rows; i++) {
+            if ((int)(pred->data[i] + 0.5) == (int)(y->data[i] + 0.5)) correct++;
+        }
+        result = (double)correct / (double)y->rows;
+    } else {
+        double mean_y = 0.0;
+        for (size_t i = 0; i < y->rows; i++) mean_y += y->data[i];
+        mean_y /= (double)y->rows;
+        double ss_res = 0.0, ss_tot = 0.0;
+        for (size_t i = 0; i < y->rows; i++) {
+            double d = y->data[i] - pred->data[i];
+            ss_res += d * d;
+            double dm = y->data[i] - mean_y;
+            ss_tot += dm * dm;
+        }
+        result = (ss_tot == 0.0) ? 0.0 : 1.0 - ss_res / ss_tot;
+    }
+
+    matrix_free(pred);
+    return result;
+}
+
+/* ── clone ───────────────────────────────────────────────────────── */
+
+Estimator* sgd_clone(const Estimator *self) {
+    if (!self) return NULL;
+    SGDModel *src = (SGDModel*)self;
+
+    SGDModel *dst = sgd_create(src->loss, src->alpha, src->eta0, src->max_iter);
+    if (!dst) return NULL;
+
+    dst->n_features = src->n_features;
+    dst->n_classes = src->n_classes;
+    dst->bias = src->bias;
+    dst->tol = src->tol;
+    dst->converged = src->converged;
+
+    if (src->weights) {
+        dst->weights = cml_malloc(src->n_features * sizeof(double));
+        if (dst->weights) {
+            memcpy(dst->weights, src->weights, src->n_features * sizeof(double));
+        }
+    }
+
+    return (Estimator*)dst;
+}
+
+/* ── save / load ─────────────────────────────────────────────────── */
+
+#define SGD_SUBTYPE 11
+
+int sgd_save(const Estimator *self, const char *path) {
+    if (!self || !path) return -1;
+    SGDModel *m = (SGDModel*)self;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    if (cml_ser_write_header(f, SGD_SUBTYPE) != 0) { fclose(f); return -1; }
+
+    fwrite(&m->loss, sizeof(SGDLossType), 1, f);
+    fwrite(&m->alpha, sizeof(double), 1, f);
+    fwrite(&m->eta0, sizeof(double), 1, f);
+    fwrite(&m->max_iter, sizeof(int), 1, f);
+    fwrite(&m->tol, sizeof(double), 1, f);
+    fwrite(&m->n_features, sizeof(int), 1, f);
+    fwrite(&m->n_classes, sizeof(int), 1, f);
+    fwrite(&m->bias, sizeof(double), 1, f);
+    fwrite(&m->converged, sizeof(int), 1, f);
+    if (m->weights) {
+        fwrite(m->weights, sizeof(double), m->n_features, f);
+    }
+
+    fclose(f);
+    return 0;
+}
+
+Estimator* sgd_load(const char *path) {
+    if (!path) return NULL;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+
+    if (cml_ser_check_header(f, SGD_SUBTYPE) != 0) { fclose(f); return NULL; }
+
+    SGDLossType loss;
+    double alpha, eta0, tol, bias;
+    int max_iter, n_features, n_classes, converged;
+
+    fread(&loss, sizeof(SGDLossType), 1, f);
+    fread(&alpha, sizeof(double), 1, f);
+    fread(&eta0, sizeof(double), 1, f);
+    fread(&max_iter, sizeof(int), 1, f);
+    fread(&tol, sizeof(double), 1, f);
+    fread(&n_features, sizeof(int), 1, f);
+    fread(&n_classes, sizeof(int), 1, f);
+    fread(&bias, sizeof(double), 1, f);
+    fread(&converged, sizeof(int), 1, f);
+
+    SGDModel *m = sgd_create(loss, alpha, eta0, max_iter);
+    if (!m) { fclose(f); return NULL; }
+
+    m->tol = tol;
+    m->n_features = n_features;
+    m->n_classes = n_classes;
+    m->bias = bias;
+    m->converged = converged;
+
+    m->weights = cml_malloc(n_features * sizeof(double));
+    if (m->weights) {
+        fread(m->weights, sizeof(double), n_features, f);
+    }
+
+    fclose(f);
+    return (Estimator*)m;
+}
+
+
 /* --- validation.c --- */
 /**
  * validation.c - Cross-validation implementation
@@ -13475,6 +14251,1102 @@ void random_forest_regressor_free(Estimator *self) {
 }
 
 
+/* --- gradient_boosting.c --- */
+/**
+ * gradient_boosting.c - Gradient Boosted Decision Trees (GBDT)
+ *
+ * Implements gradient boosting for regression and binary classification
+ * using DecisionTree as weak learner.
+ */
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ── helpers ─────────────────────────────────────────────────────── */
+
+static double gb_sigmoid(double x) {
+    if (x > 500.0) return 1.0;
+    if (x < -500.0) return 0.0;
+    return 1.0 / (1.0 + exp(-x));
+}
+
+static unsigned int gb_next_seed(unsigned int *s) {
+    /* xorshift32 */
+    *s ^= *s << 13;
+    *s ^= *s >> 17;
+    *s ^= *s << 5;
+    return *s;
+}
+
+/* ── create / free ───────────────────────────────────────────────── */
+
+GradientBoosting* gradient_boosting_create(
+    int n_estimators,
+    double learning_rate,
+    int max_depth,
+    int min_samples_split,
+    double subsample)
+{
+    GradientBoosting *gb = cml_calloc(1, sizeof(GradientBoosting));
+    if (!gb) return NULL;
+
+    gb->n_estimators      = n_estimators > 0 ? n_estimators : 100;
+    gb->learning_rate     = learning_rate > 0 ? learning_rate : 0.1;
+    gb->max_depth         = max_depth > 0 ? max_depth : 3;
+    gb->min_samples_split = min_samples_split > 1 ? min_samples_split : 2;
+    gb->subsample         = subsample > 0 && subsample <= 1.0 ? subsample : 1.0;
+    gb->seed              = (unsigned int)time(NULL);
+
+    gb->trees          = NULL;
+    gb->init_prediction = 0.0;
+    gb->n_classes       = 0;
+    gb->n_features      = 0;
+
+    /* Estimator vtable */
+    gb->base.fit          = gradient_boosting_fit;
+    gb->base.predict      = gradient_boosting_predict;
+    gb->base.predict_proba = gradient_boosting_predict_proba;
+    gb->base.score        = gradient_boosting_score;
+    gb->base.clone        = gradient_boosting_clone;
+    gb->base.free         = gradient_boosting_free;
+    gb->base.type         = MODEL_GRADIENT_BOOSTING;
+
+    return gb;
+}
+
+void gradient_boosting_free(Estimator *self) {
+    if (!self) return;
+    GradientBoosting *gb = (GradientBoosting*)self;
+    if (gb->trees) {
+        for (int t = 0; t < gb->n_estimators; t++) {
+            if (gb->trees[t]) {
+                gb->trees[t]->base.free((Estimator*)gb->trees[t]);
+            }
+        }
+        cml_free(gb->trees);
+    }
+    cml_free(gb);
+}
+
+/* ── fit ─────────────────────────────────────────────────────────── */
+
+Estimator* gradient_boosting_fit(Estimator *self, const Matrix *X, const Matrix *y) {
+    if (!self || !X || !y || X->rows != y->rows) return NULL;
+
+    GradientBoosting *gb = (GradientBoosting*)self;
+    size_t n = X->rows;
+    gb->n_features = (int)X->cols;
+
+    /* Determine number of classes from labels */
+    int max_class = 0;
+    for (size_t i = 0; i < n; i++) {
+        int label = (int)y->data[i];
+        if (label > max_class) max_class = label;
+    }
+    gb->n_classes = max_class + 1;
+
+    /* For simplicity and robustness: handle binary classification + regression */
+    int is_classification = (gb->n_classes <= 2);
+
+    /* Allocate trees */
+    gb->trees = cml_calloc(gb->n_estimators, sizeof(DecisionTreeRegressor*));
+    if (!gb->trees) return NULL;
+
+    /* Initial prediction */
+    double sum = 0.0;
+    for (size_t i = 0; i < n; i++) sum += y->data[i];
+    double mean_y = sum / (double)n;
+
+    if (is_classification) {
+        /* Log-odds of mean */
+        double p = mean_y;
+        if (p < 1e-10) p = 1e-10;
+        if (p > 1.0 - 1e-10) p = 1.0 - 1e-10;
+        gb->init_prediction = log(p / (1.0 - p));
+    } else {
+        gb->init_prediction = mean_y;
+    }
+
+    /* Current predictions */
+    double *pred = cml_malloc(n * sizeof(double));
+    if (!pred) return NULL;
+    for (size_t i = 0; i < n; i++) {
+        pred[i] = gb->init_prediction;
+    }
+
+    /* Boosting rounds */
+    for (int t = 0; t < gb->n_estimators; t++) {
+        /* Compute pseudo-residuals */
+        Matrix *residuals = matrix_alloc(n, 1);
+        if (!residuals) { cml_free(pred); return NULL; }
+
+        if (is_classification) {
+            for (size_t i = 0; i < n; i++) {
+                double prob = gb_sigmoid(pred[i]);
+                residuals->data[i] = y->data[i] - prob;
+            }
+        } else {
+            for (size_t i = 0; i < n; i++) {
+                residuals->data[i] = y->data[i] - pred[i];
+            }
+        }
+
+        /* Subsample if needed */
+        Matrix *X_train = (Matrix*)X;
+        Matrix *y_train = residuals;
+        size_t *indices = NULL;
+        size_t train_n = n;
+
+        if (gb->subsample < 1.0) {
+            train_n = (size_t)(n * gb->subsample);
+            if (train_n < 2) train_n = 2;
+            indices = cml_malloc(train_n * sizeof(size_t));
+            if (indices) {
+                for (size_t i = 0; i < train_n; i++) {
+                    indices[i] = gb_next_seed(&gb->seed) % n;
+                }
+                X_train = matrix_alloc(train_n, X->cols);
+                y_train = matrix_alloc(train_n, 1);
+                for (size_t i = 0; i < train_n; i++) {
+                    size_t idx = indices[i];
+                    for (size_t j = 0; j < X->cols; j++)
+                        matrix_set(X_train, i, j, matrix_get(X, idx, j));
+                    matrix_set(y_train, i, 0, matrix_get(residuals, idx, 0));
+                }
+            }
+        }
+
+        /* Fit weak learner (DecisionTreeRegressor, depth-limited) */
+        gb->trees[t] = decision_tree_regressor_create_full(
+            0,  /* CRITERION_MSE */
+            gb->max_depth,
+            gb->min_samples_split,
+            1,  /* min_samples_leaf */
+            0.0 /* min_impurity_decrease */
+        );
+        if (!gb->trees[t]) {
+            matrix_free(residuals);
+            cml_free(pred);
+            if (indices) cml_free(indices);
+            return NULL;
+        }
+        gb->trees[t]->base.fit((Estimator*)gb->trees[t], X_train, y_train);
+
+        /* Update predictions */
+        Matrix *tree_pred = gb->trees[t]->base.predict((Estimator*)gb->trees[t], X);
+        if (tree_pred) {
+            for (size_t i = 0; i < n; i++) {
+                pred[i] += gb->learning_rate * tree_pred->data[i];
+            }
+            matrix_free(tree_pred);
+        }
+
+        /* Cleanup */
+        if (gb->subsample < 1.0 && indices) {
+            if (X_train != X) matrix_free(X_train);
+            if (y_train != residuals) matrix_free(y_train);
+            cml_free(indices);
+        }
+        matrix_free(residuals);
+    }
+
+    cml_free(pred);
+    return self;
+}
+
+/* ── predict ─────────────────────────────────────────────────────── */
+
+Matrix* gradient_boosting_predict(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    GradientBoosting *gb = (GradientBoosting*)self;
+
+    size_t n = X->rows;
+    int is_classification = (gb->n_classes <= 2);
+
+    /* Compute raw predictions */
+    double *raw = cml_malloc(n * sizeof(double));
+    if (!raw) return NULL;
+
+    for (size_t i = 0; i < n; i++) raw[i] = gb->init_prediction;
+
+    for (int t = 0; t < gb->n_estimators; t++) {
+        if (!gb->trees[t]) continue;
+        Matrix *tp = gb->trees[t]->base.predict((Estimator*)gb->trees[t], X);
+        if (tp) {
+            for (size_t i = 0; i < n; i++) {
+                raw[i] += gb->learning_rate * tp->data[i];
+            }
+            matrix_free(tp);
+        }
+    }
+
+    /* Convert to labels */
+    Matrix *out = matrix_alloc(n, 1);
+    if (!out) { cml_free(raw); return NULL; }
+
+    if (is_classification) {
+        for (size_t i = 0; i < n; i++) {
+            out->data[i] = gb_sigmoid(raw[i]) >= 0.5 ? 1.0 : 0.0;
+        }
+    } else {
+        for (size_t i = 0; i < n; i++) {
+            out->data[i] = raw[i];
+        }
+    }
+
+    cml_free(raw);
+    return out;
+}
+
+/* ── predict_proba ───────────────────────────────────────────────── */
+
+Matrix* gradient_boosting_predict_proba(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    GradientBoosting *gb = (GradientBoosting*)self;
+
+    size_t n = X->rows;
+    int is_classification = (gb->n_classes <= 2);
+
+    if (!is_classification) {
+        /* For regression, return predictions as probabilities */
+        return gradient_boosting_predict(self, X);
+    }
+
+    /* Binary classification: return [prob_class0, prob_class1] */
+    Matrix *out = matrix_alloc(n, 2);
+    if (!out) return NULL;
+
+    double *raw = cml_malloc(n * sizeof(double));
+    if (!raw) { matrix_free(out); return NULL; }
+
+    for (size_t i = 0; i < n; i++) raw[i] = gb->init_prediction;
+
+    for (int t = 0; t < gb->n_estimators; t++) {
+        if (!gb->trees[t]) continue;
+        Matrix *tp = gb->trees[t]->base.predict((Estimator*)gb->trees[t], X);
+        if (tp) {
+            for (size_t i = 0; i < n; i++) {
+                raw[i] += gb->learning_rate * tp->data[i];
+            }
+            matrix_free(tp);
+        }
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        double p1 = gb_sigmoid(raw[i]);
+        matrix_set(out, i, 0, 1.0 - p1);
+        matrix_set(out, i, 1, p1);
+    }
+
+    cml_free(raw);
+    return out;
+}
+
+/* ── score ───────────────────────────────────────────────────────── */
+
+double gradient_boosting_score(const Estimator *self, const Matrix *X, const Matrix *y) {
+    if (!self || !X || !y) return -1.0;
+    GradientBoosting *gb = (GradientBoosting*)self;
+
+    Matrix *pred = gradient_boosting_predict(self, X);
+    if (!pred) return -1.0;
+
+    int is_classification = (gb->n_classes <= 2);
+
+    if (is_classification) {
+        /* Accuracy */
+        size_t correct = 0;
+        for (size_t i = 0; i < y->rows; i++) {
+            int pred_label = (int)(pred->data[i] + 0.5);
+            int true_label = (int)(y->data[i] + 0.5);
+            if (pred_label == true_label) correct++;
+        }
+        matrix_free(pred);
+        return (double)correct / (double)y->rows;
+    } else {
+        /* R² score */
+        double mean_y = 0.0;
+        for (size_t i = 0; i < y->rows; i++) mean_y += y->data[i];
+        mean_y /= (double)y->rows;
+
+        double ss_res = 0.0, ss_tot = 0.0;
+        for (size_t i = 0; i < y->rows; i++) {
+            double diff = y->data[i] - pred->data[i];
+            ss_res += diff * diff;
+            double diff_mean = y->data[i] - mean_y;
+            ss_tot += diff_mean * diff_mean;
+        }
+        matrix_free(pred);
+        if (ss_tot == 0.0) return 0.0;
+        return 1.0 - ss_res / ss_tot;
+    }
+}
+
+/* ── clone ───────────────────────────────────────────────────────── */
+
+Estimator* gradient_boosting_clone(const Estimator *self) {
+    if (!self) return NULL;
+    GradientBoosting *src = (GradientBoosting*)self;
+
+    GradientBoosting *dst = gradient_boosting_create(
+        src->n_estimators,
+        src->learning_rate,
+        src->max_depth,
+        src->min_samples_split,
+        src->subsample
+    );
+    if (!dst) return NULL;
+
+    dst->init_prediction = src->init_prediction;
+    dst->n_classes = src->n_classes;
+    dst->n_features = src->n_features;
+    dst->seed = src->seed;
+
+    if (src->trees) {
+        dst->trees = cml_calloc(src->n_estimators, sizeof(DecisionTreeRegressor*));
+        if (!dst->trees) { cml_free(dst); return NULL; }
+        for (int t = 0; t < src->n_estimators; t++) {
+            if (src->trees[t]) {
+                Estimator *cloned = src->trees[t]->base.clone((Estimator*)src->trees[t]);
+                dst->trees[t] = (DecisionTreeRegressor*)cloned;
+            }
+        }
+    }
+
+    return (Estimator*)dst;
+}
+
+/* ── save / load ─────────────────────────────────────────────────── */
+
+#define GB_MAGIC "CML\0"
+#define GB_SUBTYPE 10
+
+int gradient_boosting_save(const Estimator *self, const char *path) {
+    if (!self || !path) return -1;
+    GradientBoosting *gb = (GradientBoosting*)self;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    /* Write header */
+    if (cml_ser_write_header(f, GB_SUBTYPE) != 0) {
+        fclose(f);
+        return -1;
+    }
+
+    /* Write hyperparameters */
+    fwrite(&gb->n_estimators, sizeof(int), 1, f);
+    fwrite(&gb->learning_rate, sizeof(double), 1, f);
+    fwrite(&gb->max_depth, sizeof(int), 1, f);
+    fwrite(&gb->min_samples_split, sizeof(int), 1, f);
+    fwrite(&gb->subsample, sizeof(double), 1, f);
+    fwrite(&gb->init_prediction, sizeof(double), 1, f);
+    fwrite(&gb->n_classes, sizeof(int), 1, f);
+    fwrite(&gb->n_features, sizeof(int), 1, f);
+    fwrite(&gb->seed, sizeof(unsigned int), 1, f);
+
+    /* Write each tree as a temporary file, then embed */
+    for (int t = 0; t < gb->n_estimators; t++) {
+        if (!gb->trees[t]) {
+            int marker = 0;
+            fwrite(&marker, sizeof(int), 1, f);
+            continue;
+        }
+        int marker = 1;
+        fwrite(&marker, sizeof(int), 1, f);
+
+        /* Serialize tree to temp file, then read and write */
+        char tmppath[256];
+        snprintf(tmppath, sizeof(tmppath), "/tmp/gb_tree_%d.bin", t);
+        gb->trees[t]->base.save((Estimator*)gb->trees[t], tmppath);
+
+        FILE *tf = fopen(tmppath, "rb");
+        if (tf) {
+            fseek(tf, 0, SEEK_END);
+            long sz = ftell(tf);
+            fseek(tf, 0, SEEK_SET);
+            fwrite(&sz, sizeof(long), 1, f);
+            char *buf = cml_malloc(sz);
+            fread(buf, 1, sz, tf);
+            fwrite(buf, 1, sz, f);
+            cml_free(buf);
+            fclose(tf);
+            remove(tmppath);
+        }
+    }
+
+    fclose(f);
+    return 0;
+}
+
+Estimator* gradient_boosting_load(const char *path) {
+    if (!path) return NULL;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+
+    if (cml_ser_check_header(f, GB_SUBTYPE) != 0) {
+        fclose(f);
+        return NULL;
+    }
+
+    int n_estimators, max_depth, min_samples_split, n_classes, n_features;
+    double learning_rate, subsample, init_prediction;
+    unsigned int seed;
+
+    fread(&n_estimators, sizeof(int), 1, f);
+    fread(&learning_rate, sizeof(double), 1, f);
+    fread(&max_depth, sizeof(int), 1, f);
+    fread(&min_samples_split, sizeof(int), 1, f);
+    fread(&subsample, sizeof(double), 1, f);
+    fread(&init_prediction, sizeof(double), 1, f);
+    fread(&n_classes, sizeof(int), 1, f);
+    fread(&n_features, sizeof(int), 1, f);
+    fread(&seed, sizeof(unsigned int), 1, f);
+
+    GradientBoosting *gb = gradient_boosting_create(
+        n_estimators, learning_rate, max_depth, min_samples_split, subsample
+    );
+    if (!gb) { fclose(f); return NULL; }
+
+    gb->init_prediction = init_prediction;
+    gb->n_classes = n_classes;
+    gb->n_features = n_features;
+    gb->seed = seed;
+
+    gb->trees = cml_calloc(n_estimators, sizeof(DecisionTreeRegressor*));
+    if (!gb->trees) { fclose(f); cml_free(gb); return NULL; }
+
+    for (int t = 0; t < n_estimators; t++) {
+        int marker;
+        fread(&marker, sizeof(int), 1, f);
+        if (!marker) continue;
+
+        long sz;
+        fread(&sz, sizeof(long), 1, f);
+        char *buf = cml_malloc(sz);
+        fread(buf, 1, sz, f);
+
+        /* Write to temp and load tree */
+        char tmppath[256];
+        snprintf(tmppath, sizeof(tmppath), "/tmp/gb_load_tree_%d.bin", t);
+        FILE *tf = fopen(tmppath, "wb");
+        if (tf) {
+            fwrite(buf, 1, sz, tf);
+            fclose(tf);
+            Estimator *tree_est = gb->trees[t]->base.load(tmppath);
+            /* load may return NULL — tree stays NULL which is handled in predict */
+            gb->trees[t] = (DecisionTreeRegressor*)tree_est;
+            remove(tmppath);
+        }
+        cml_free(buf);
+    }
+
+    fclose(f);
+    return (Estimator*)gb;
+}
+
+
+/* --- isolation_forest.c --- */
+/**
+ * isolation_forest.c - Isolation Forest for anomaly detection
+ *
+ * Based on Liu, Ting & Zhou (2008) "Isolation Forest".
+ * Anomalies are isolated closer to the root → shorter path lengths.
+ */
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ── Isolation Tree node ─────────────────────────────────────────── */
+
+typedef struct IsoNode {
+    int is_leaf;
+    int split_feature;         /* Which feature to split on */
+    double split_value;        /* Threshold */
+    int depth;                 /* Depth of this node */
+    int size;                  /* Number of samples at this leaf */
+    struct IsoNode *left;
+    struct IsoNode *right;
+} IsoNode;
+
+typedef struct {
+    IsoNode *root;
+} IsoTree;
+
+/* ── helpers ─────────────────────────────────────────────────────── */
+
+static unsigned int iso_rand(unsigned int *s) {
+    *s ^= *s << 13;
+    *s ^= *s >> 17;
+    *s ^= *s << 5;
+    return *s;
+}
+
+/* Average path length of unsuccessful search in BST */
+static double avg_path_length(int n) {
+    if (n <= 1) return 0.0;
+    if (n == 2) return 1.0;
+    double euler = 0.5772156649015329;  /* Euler-Mascheroni */
+    return 2.0 * (log((double)n - 1.0) + euler) - 2.0 * (double)(n - 1) / (double)n;
+}
+
+/* ── tree building ───────────────────────────────────────────────── */
+
+static IsoNode* build_iso_tree(const Matrix *X, const size_t *indices, size_t n,
+                                int depth, int max_depth, unsigned int *seed) {
+    IsoNode *node = cml_calloc(1, sizeof(IsoNode));
+    if (!node) return NULL;
+    node->depth = depth;
+
+    /* Stop conditions */
+    if (depth >= max_depth || n <= 1) {
+        node->is_leaf = 1;
+        node->size = (int)n;
+        return node;
+    }
+
+    /* Check if all samples identical */
+    int all_same = 1;
+    for (size_t j = 0; j < X->cols && all_same; j++) {
+        double val = matrix_get(X, indices[0], j);
+        for (size_t i = 1; i < n; i++) {
+            if (matrix_get(X, indices[i], j) != val) {
+                all_same = 0;
+                break;
+            }
+        }
+    }
+    if (all_same) {
+        node->is_leaf = 1;
+        node->size = (int)n;
+        return node;
+    }
+
+    /* Pick random feature and split value */
+    int feat = (int)(iso_rand(seed) % X->cols);
+    double min_val = matrix_get(X, indices[0], feat);
+    double max_val = min_val;
+    for (size_t i = 1; i < n; i++) {
+        double v = matrix_get(X, indices[i], feat);
+        if (v < min_val) min_val = v;
+        if (v > max_val) max_val = v;
+    }
+
+    if (min_val == max_val) {
+        node->is_leaf = 1;
+        node->size = (int)n;
+        return node;
+    }
+
+    /* Random split between min and max */
+    double frac = (double)(iso_rand(seed) % 10000) / 10000.0;
+    double split_val = min_val + frac * (max_val - min_val);
+
+    node->is_leaf = 0;
+    node->split_feature = feat;
+    node->split_value = split_val;
+
+    /* Partition */
+    size_t *left_idx = cml_malloc(n * sizeof(size_t));
+    size_t *right_idx = cml_malloc(n * sizeof(size_t));
+    size_t nl = 0, nr = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        if (matrix_get(X, indices[i], feat) < split_val) {
+            left_idx[nl++] = indices[i];
+        } else {
+            right_idx[nr++] = indices[i];
+        }
+    }
+
+    node->left = build_iso_tree(X, left_idx, nl, depth + 1, max_depth, seed);
+    node->right = build_iso_tree(X, right_idx, nr, depth + 1, max_depth, seed);
+
+    cml_free(left_idx);
+    cml_free(right_idx);
+    return node;
+}
+
+static void free_iso_tree(IsoNode *node) {
+    if (!node) return;
+    free_iso_tree(node->left);
+    free_iso_tree(node->right);
+    cml_free(node);
+}
+
+/* ── path length computation ─────────────────────────────────────── */
+
+static double path_length(const IsoNode *node, const Matrix *X, size_t row, int max_depth) {
+    if (!node) return (double)max_depth;
+
+    if (node->is_leaf) {
+        return (double)node->depth + avg_path_length(node->size);
+    }
+
+    double val = matrix_get(X, row, node->split_feature);
+    if (val < node->split_value) {
+        return path_length(node->left, X, row, max_depth);
+    } else {
+        return path_length(node->right, X, row, max_depth);
+    }
+}
+
+/* ── create / free ───────────────────────────────────────────────── */
+
+IsolationForest* isolation_forest_create(int n_trees, int max_samples) {
+    IsolationForest *ifor = cml_calloc(1, sizeof(IsolationForest));
+    if (!ifor) return NULL;
+
+    ifor->n_trees     = n_trees > 0 ? n_trees : 100;
+    ifor->max_samples = max_samples;
+    ifor->max_depth   = 0;  /* auto */
+    ifor->seed        = (unsigned int)time(NULL) ^ 0x1F0FE57;
+
+    ifor->trees       = NULL;
+    ifor->n_features  = 0;
+    ifor->n_train     = 0;
+    ifor->threshold   = NULL;
+
+    ifor->base.fit     = isolation_forest_fit;
+    ifor->base.predict = isolation_forest_predict;
+    ifor->base.score   = isolation_forest_score;
+    ifor->base.clone   = isolation_forest_clone;
+    ifor->base.free    = isolation_forest_free;
+    ifor->base.type    = MODEL_KMEANS;  /* closest: unsupervised */
+
+    return ifor;
+}
+
+void isolation_forest_free(Estimator *self) {
+    if (!self) return;
+    IsolationForest *ifor = (IsolationForest*)self;
+    if (ifor->trees) {
+        for (int t = 0; t < ifor->n_trees; t++) {
+            IsoTree *tree = (IsoTree*)ifor->trees[t];
+            if (tree) {
+                free_iso_tree(tree->root);
+                cml_free(tree);
+            }
+        }
+        cml_free(ifor->trees);
+    }
+    cml_free(ifor->threshold);
+    cml_free(ifor);
+}
+
+/* ── fit ─────────────────────────────────────────────────────────── */
+
+Estimator* isolation_forest_fit(Estimator *self, const Matrix *X, const Matrix *y) {
+    (void)y;  /* Unsupervised */
+    if (!self || !X) return NULL;
+
+    IsolationForest *ifor = (IsolationForest*)self;
+    size_t n = X->rows;
+    ifor->n_features = (int)X->cols;
+    ifor->n_train = n;
+
+    int sample_size = ifor->max_samples > 0 ? ifor->max_samples : (n < 256 ? (int)n : 256);
+    if (sample_size > (int)n) sample_size = (int)n;
+
+    int depth = ifor->max_depth > 0 ? ifor->max_depth : (int)ceil(log2(sample_size + 1));
+
+    ifor->trees = cml_calloc(ifor->n_trees, sizeof(IsoTree*));
+    if (!ifor->trees) return NULL;
+
+    size_t *indices = cml_malloc(sample_size * sizeof(size_t));
+
+    for (int t = 0; t < ifor->n_trees; t++) {
+        /* Subsample */
+        if ((size_t)sample_size >= n) {
+            for (int i = 0; i < sample_size; i++) indices[i] = (size_t)i;
+        } else {
+            for (int i = 0; i < sample_size; i++) {
+                indices[i] = iso_rand(&ifor->seed) % n;
+            }
+        }
+
+        IsoTree *tree = cml_calloc(1, sizeof(IsoTree));
+        if (!tree) continue;
+
+        tree->root = build_iso_tree(X, indices, sample_size, 0, depth, &ifor->seed);
+        ifor->trees[t] = tree;
+    }
+
+    cml_free(indices);
+
+    /* Compute threshold from training data (5th percentile score → threshold) */
+    Matrix *scores = isolation_forest_score_samples(self, X);
+    if (scores && scores->rows > 0) {
+        /* Sort scores to find 5th percentile */
+        double *sarr = cml_malloc(scores->rows * sizeof(double));
+        for (size_t i = 0; i < scores->rows; i++) sarr[i] = scores->data[i];
+        /* Simple insertion sort (fine for threshold computation) */
+        for (size_t i = 1; i < scores->rows; i++) {
+            double key = sarr[i];
+            size_t j = i;
+            while (j > 0 && sarr[j - 1] > key) {
+                sarr[j] = sarr[j - 1];
+                j--;
+            }
+            sarr[j] = key;
+        }
+        size_t idx = (size_t)(0.05 * scores->rows);
+        if (idx >= scores->rows) idx = scores->rows - 1;
+
+        ifor->threshold = cml_malloc(sizeof(double));
+        if (ifor->threshold) *ifor->threshold = sarr[idx];
+        cml_free(sarr);
+        matrix_free(scores);
+    }
+
+    return self;
+}
+
+/* ── score_samples ───────────────────────────────────────────────── */
+
+Matrix* isolation_forest_score_samples(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    IsolationForest *ifor = (IsolationForest*)self;
+
+    size_t n = X->rows;
+    Matrix *out = matrix_alloc(n, 1);
+    if (!out) return NULL;
+
+    int sample_size = ifor->max_samples > 0 ? ifor->max_samples : (ifor->n_train < 256 ? (int)ifor->n_train : 256);
+    double c_n = avg_path_length(sample_size);
+
+    for (size_t i = 0; i < n; i++) {
+        double avg_path = 0.0;
+        int valid_trees = 0;
+
+        for (int t = 0; t < ifor->n_trees; t++) {
+            IsoTree *tree = (IsoTree*)ifor->trees[t];
+            if (tree && tree->root) {
+                avg_path += path_length(tree->root, X, i, ifor->max_depth > 0 ? ifor->max_depth : 50);
+                valid_trees++;
+            }
+        }
+
+        if (valid_trees > 0) avg_path /= (double)valid_trees;
+
+        /* Anomaly score: 2^(-avg_path / c(n)) */
+        double score;
+        if (c_n > 0) {
+            score = pow(2.0, -avg_path / c_n);
+        } else {
+            score = 0.5;
+        }
+
+        out->data[i] = score;
+    }
+
+    return out;
+}
+
+/* ── predict ─────────────────────────────────────────────────────── */
+
+Matrix* isolation_forest_predict(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    IsolationForest *ifor = (IsolationForest*)self;
+
+    Matrix *scores = isolation_forest_score_samples(self, X);
+    if (!scores) return NULL;
+
+    size_t n = X->rows;
+    Matrix *out = matrix_alloc(n, 1);
+    if (!out) { matrix_free(scores); return NULL; }
+
+    double thresh = ifor->threshold ? *ifor->threshold : 0.5;
+
+    for (size_t i = 0; i < n; i++) {
+        /* score > threshold → anomaly */
+        out->data[i] = (scores->data[i] > thresh) ? -1.0 : 1.0;
+    }
+
+    matrix_free(scores);
+    return out;
+}
+
+/* ── score ───────────────────────────────────────────────────────── */
+
+double isolation_forest_score(const Estimator *self, const Matrix *X, const Matrix *y) {
+    if (!self || !X || !y) return -1.0;
+
+    Matrix *pred = isolation_forest_predict(self, X);
+    if (!pred) return -1.0;
+
+    size_t correct = 0;
+    for (size_t i = 0; i < y->rows; i++) {
+        int p = (int)pred->data[i];
+        int t = (int)y->data[i];
+        if (t == -1 || t == 1) {
+            if (p == t) correct++;
+        }
+    }
+
+    matrix_free(pred);
+
+    size_t labeled = 0;
+    for (size_t i = 0; i < y->rows; i++) {
+        int t = (int)y->data[i];
+        if (t == -1 || t == 1) labeled++;
+    }
+
+    return labeled > 0 ? (double)correct / (double)labeled : 0.0;
+}
+
+/* ── clone ───────────────────────────────────────────────────────── */
+
+Estimator* isolation_forest_clone(const Estimator *self) {
+    (void)self;
+    /* Simplified: return NULL — clone not critical for IF */
+    return NULL;
+}
+
+
+/* --- agglomerative.c --- */
+/**
+ * agglomerative.c - Agglomerative (hierarchical) clustering
+ *
+ * Bottom-up approach: start with each point as its own cluster,
+ * iteratively merge the two closest clusters until n_clusters remain.
+ * Supports single, complete, and average linkage.
+ */
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <float.h>
+
+/* ── distance cache ──────────────────────────────────────────────── */
+
+static double euclidean_dist(const Matrix *X, size_t a, size_t b) {
+    double sum = 0.0;
+    for (size_t j = 0; j < X->cols; j++) {
+        double d = matrix_get(X, a, j) - matrix_get(X, b, j);
+        sum += d * d;
+    }
+    return sqrt(sum);
+}
+
+/* ── create / free ───────────────────────────────────────────────── */
+
+AgglomerativeClustering* agglomerative_create(int n_clusters, LinkageType linkage) {
+    AgglomerativeClustering *ac = cml_calloc(1, sizeof(AgglomerativeClustering));
+    if (!ac) return NULL;
+
+    ac->n_clusters = n_clusters > 0 ? n_clusters : 2;
+    ac->linkage    = linkage;
+    ac->labels     = NULL;
+    ac->n_samples  = 0;
+    ac->n_features = 0;
+
+    ac->base.fit     = agglomerative_fit;
+    ac->base.predict = agglomerative_predict;
+    ac->base.score   = agglomerative_score;
+    ac->base.clone   = agglomerative_clone;
+    ac->base.free    = agglomerative_free;
+    ac->base.type    = MODEL_KMEANS;
+
+    return ac;
+}
+
+void agglomerative_free(Estimator *self) {
+    if (!self) return;
+    AgglomerativeClustering *ac = (AgglomerativeClustering*)self;
+    cml_free(ac->labels);
+    cml_free(ac);
+}
+
+/* ── fit ─────────────────────────────────────────────────────────── */
+
+Estimator* agglomerative_fit(Estimator *self, const Matrix *X, const Matrix *y) {
+    (void)y;
+    if (!self || !X) return NULL;
+
+    AgglomerativeClustering *ac = (AgglomerativeClustering*)self;
+    size_t n = X->rows;
+    ac->n_samples = n;
+    ac->n_features = (int)X->cols;
+
+    if ((int)n <= ac->n_clusters) {
+        /* Each point is its own cluster */
+        ac->labels = cml_malloc(n * sizeof(int));
+        for (size_t i = 0; i < n; i++) ac->labels[i] = (int)i;
+        return self;
+    }
+
+    /* Precompute pairwise distances */
+    double *dist = cml_malloc(n * n * sizeof(double));
+    if (!dist) return NULL;
+    for (size_t i = 0; i < n; i++) {
+        dist[i * n + i] = 0.0;
+        for (size_t j = i + 1; j < n; j++) {
+            double d = euclidean_dist(X, i, j);
+            dist[i * n + j] = d;
+            dist[j * n + i] = d;
+        }
+    }
+
+    /* Cluster membership: each sample starts in its own cluster */
+    int *cluster_of = cml_malloc(n * sizeof(int));
+    int *cluster_size = cml_malloc(n * sizeof(int));
+    for (size_t i = 0; i < n; i++) {
+        cluster_of[i] = (int)i;
+        cluster_size[i] = 1;
+    }
+
+    /* Active cluster list */
+    int *active = cml_malloc(n * sizeof(int));
+    int n_active = (int)n;
+    for (size_t i = 0; i < n; i++) active[i] = 1;
+
+    /* Cluster distance matrix */
+    double *cdist = cml_malloc(n * n * sizeof(double));
+    memcpy(cdist, dist, n * n * sizeof(double));
+
+    /* Iteratively merge closest clusters */
+    int next_label = (int)n;
+
+    while (n_active > ac->n_clusters) {
+        /* Find closest pair */
+        double min_dist = DBL_MAX;
+        int mi = -1, mj = -1;
+
+        for (int i = 0; i < (int)n; i++) {
+            if (!active[i]) continue;
+            for (int j = i + 1; j < (int)n; j++) {
+                if (!active[j]) continue;
+                double d = cdist[i * n + j];
+                if (d < min_dist) {
+                    min_dist = d;
+                    mi = i;
+                    mj = j;
+                }
+            }
+        }
+
+        if (mi < 0 || mj < 0) break;
+
+        /* Merge cluster mj into mi */
+        int si = cluster_size[mi];
+        int sj = cluster_size[mj];
+
+        /* Update distances using Lance-Williams formula */
+        for (int k = 0; k < (int)n; k++) {
+            if (!active[k] || k == mi || k == mj) continue;
+
+            double dik = cdist[mi * n + k];
+            double djk = cdist[mj * n + k];
+            double new_dist;
+
+            switch (ac->linkage) {
+                case LINKAGE_SINGLE:
+                    new_dist = fmin(dik, djk);
+                    break;
+                case LINKAGE_COMPLETE:
+                    new_dist = fmax(dik, djk);
+                    break;
+                case LINKAGE_AVERAGE:
+                default:
+                    new_dist = ((double)si * dik + (double)sj * djk) / (double)(si + sj);
+                    break;
+            }
+
+            cdist[mi * n + k] = new_dist;
+            cdist[k * n + mi] = new_dist;
+        }
+
+        /* Update labels */
+        for (size_t s = 0; s < n; s++) {
+            if (cluster_of[s] == mj) {
+                cluster_of[s] = mi;
+            }
+        }
+
+        cluster_size[mi] += cluster_size[mj];
+        active[mj] = 0;
+        n_active--;
+        (void)next_label;
+    }
+
+    /* Relabel clusters to 0..n_clusters-1 */
+    int *label_map = cml_malloc(n * sizeof(int));
+    memset(label_map, -1, n * sizeof(int));
+    int label_count = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        int c = cluster_of[i];
+        if (label_map[c] == -1) {
+            label_map[c] = label_count++;
+        }
+        cluster_of[i] = label_map[c];
+    }
+
+    ac->labels = cml_malloc(n * sizeof(int));
+    if (ac->labels) {
+        memcpy(ac->labels, cluster_of, n * sizeof(int));
+    }
+
+    cml_free(dist);
+    cml_free(cdist);
+    cml_free(cluster_of);
+    cml_free(cluster_size);
+    cml_free(active);
+    cml_free(label_map);
+
+    return self;
+}
+
+/* ── predict ─────────────────────────────────────────────────────── */
+
+Matrix* agglomerative_predict(const Estimator *self, const Matrix *X) {
+    if (!self || !X) return NULL;
+    /* Agglomerative clustering doesn't naturally support prediction on new data.
+       Return NULL — users should use fit to get labels. */
+    (void)self;
+    (void)X;
+    return NULL;
+}
+
+/* ── score (silhouette) ──────────────────────────────────────────── */
+
+double agglomerative_score(const Estimator *self, const Matrix *X, const Matrix *y) {
+    (void)self;
+    (void)X;
+    (void)y;
+    /* Silhouette score computation — use metrics module if available */
+    return 0.0;
+}
+
+/* ── clone ───────────────────────────────────────────────────────── */
+
+Estimator* agglomerative_clone(const Estimator *self) {
+    if (!self) return NULL;
+    AgglomerativeClustering *src = (AgglomerativeClustering*)self;
+
+    AgglomerativeClustering *dst = agglomerative_create(src->n_clusters, src->linkage);
+    if (!dst) return NULL;
+
+    dst->n_samples = src->n_samples;
+    dst->n_features = src->n_features;
+
+    if (src->labels && src->n_samples > 0) {
+        dst->labels = cml_malloc(src->n_samples * sizeof(int));
+        if (dst->labels) {
+            memcpy(dst->labels, src->labels, src->n_samples * sizeof(int));
+        }
+    }
+
+    return (Estimator*)dst;
+}
+
+
 /* --- model_selection.c --- */
 /**
  * model_selection.c - GridSearchCV and learning curves implementation
@@ -14611,6 +16483,233 @@ Estimator* pipeline_get_estimator(Pipeline *pipe) {
     }
     return NULL;
 }
+
+
+/* --- cml_simd.c --- */
+/**
+ * @file cml_simd.c
+ * @brief SIMD-accelerated hot-path operations — implementation
+ *
+ * Compile-time dispatch:
+ *   - aarch64 → ARM NEON float64 intrinsics (full fp64 on aarch64)
+ *   - x86_64  → SSE2 double intrinsics
+ *   - other   → scalar C loops
+ */
+
+#include <math.h>
+
+/* ------------------------------------------------------------------ */
+/*  ARM NEON path  (aarch64 has full float64 NEON)                    */
+/* ------------------------------------------------------------------ */
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+
+#include <arm_neon.h>
+
+/* SIMD width for float64 on aarch64: 128 bits → 2 × f64 */
+#define CML_SIMD_WIDTH 2
+
+double cml_simd_dot_product(const double *a, const double *b, size_t n)
+{
+    float64x2_t acc = vdupq_n_f64(0.0);
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        float64x2_t va = vld1q_f64(a + i);
+        float64x2_t vb = vld1q_f64(b + i);
+        acc = vfmaq_f64(acc, va, vb);
+    }
+    /* horizontal sum */
+    double tmp[2];
+    vst1q_f64(tmp, acc);
+    double sum = tmp[0] + tmp[1];
+    /* tail */
+    for (; i < n; i++)
+        sum += a[i] * b[i];
+    return sum;
+}
+
+double cml_simd_euclidean_distance(const double *a, const double *b, size_t n)
+{
+    float64x2_t acc = vdupq_n_f64(0.0);
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        float64x2_t va = vld1q_f64(a + i);
+        float64x2_t vb = vld1q_f64(b + i);
+        float64x2_t diff = vsubq_f64(va, vb);
+        acc = vfmaq_f64(acc, diff, diff);
+    }
+    double tmp[2];
+    vst1q_f64(tmp, acc);
+    double sum = tmp[0] + tmp[1];
+    for (; i < n; i++) {
+        double d = a[i] - b[i];
+        sum += d * d;
+    }
+    return sqrt(sum);
+}
+
+void cml_simd_vec_add(double *dst, const double *a, const double *b, size_t n)
+{
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        float64x2_t va = vld1q_f64(a + i);
+        float64x2_t vb = vld1q_f64(b + i);
+        vst1q_f64(dst + i, vaddq_f64(va, vb));
+    }
+    for (; i < n; i++)
+        dst[i] = a[i] + b[i];
+}
+
+void cml_simd_vec_scale(double *dst, const double *a, double s, size_t n)
+{
+    float64x2_t vs = vdupq_n_f64(s);
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        float64x2_t va = vld1q_f64(a + i);
+        vst1q_f64(dst + i, vmulq_f64(va, vs));
+    }
+    for (; i < n; i++)
+        dst[i] = a[i] * s;
+}
+
+void cml_simd_mat_vec_multiply(double *out, const double *mat,
+                               const double *vec, size_t rows, size_t cols)
+{
+    for (size_t r = 0; r < rows; r++) {
+        const double *row = mat + r * cols;
+        out[r] = cml_simd_dot_product(row, vec, cols);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  SSE2 path                                                         */
+/* ------------------------------------------------------------------ */
+#elif defined(__SSE2__)
+
+#include <emmintrin.h>
+
+#define CML_SIMD_WIDTH 2
+
+double cml_simd_dot_product(const double *a, const double *b, size_t n)
+{
+    __m128d acc = _mm_setzero_pd();
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        __m128d va = _mm_loadu_pd(a + i);
+        __m128d vb = _mm_loadu_pd(b + i);
+        acc = _mm_add_pd(acc, _mm_mul_pd(va, vb));
+    }
+    /* horizontal sum */
+    __m128d shuffle = _mm_shuffle_pd(acc, acc, 0x01);
+    __m128d sum_vec = _mm_add_pd(acc, shuffle);
+    double sum;
+    _mm_store_sd(&sum, sum_vec);
+    for (; i < n; i++)
+        sum += a[i] * b[i];
+    return sum;
+}
+
+double cml_simd_euclidean_distance(const double *a, const double *b, size_t n)
+{
+    __m128d acc = _mm_setzero_pd();
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        __m128d va = _mm_loadu_pd(a + i);
+        __m128d vb = _mm_loadu_pd(b + i);
+        __m128d diff = _mm_sub_pd(va, vb);
+        acc = _mm_add_pd(acc, _mm_mul_pd(diff, diff));
+    }
+    __m128d shuffle = _mm_shuffle_pd(acc, acc, 0x01);
+    __m128d sum_vec = _mm_add_pd(acc, shuffle);
+    double sum;
+    _mm_store_sd(&sum, sum_vec);
+    for (; i < n; i++) {
+        double d = a[i] - b[i];
+        sum += d * d;
+    }
+    return sqrt(sum);
+}
+
+void cml_simd_vec_add(double *dst, const double *a, const double *b, size_t n)
+{
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        __m128d va = _mm_loadu_pd(a + i);
+        __m128d vb = _mm_loadu_pd(b + i);
+        _mm_storeu_pd(dst + i, _mm_add_pd(va, vb));
+    }
+    for (; i < n; i++)
+        dst[i] = a[i] + b[i];
+}
+
+void cml_simd_vec_scale(double *dst, const double *a, double s, size_t n)
+{
+    __m128d vs = _mm_set1_pd(s);
+    size_t i = 0;
+    for (; i + CML_SIMD_WIDTH <= n; i += CML_SIMD_WIDTH) {
+        __m128d va = _mm_loadu_pd(a + i);
+        _mm_storeu_pd(dst + i, _mm_mul_pd(va, vs));
+    }
+    for (; i < n; i++)
+        dst[i] = a[i] * s;
+}
+
+void cml_simd_mat_vec_multiply(double *out, const double *mat,
+                               const double *vec, size_t rows, size_t cols)
+{
+    for (size_t r = 0; r < rows; r++) {
+        const double *row = mat + r * cols;
+        out[r] = cml_simd_dot_product(row, vec, cols);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Scalar fallback                                                   */
+/* ------------------------------------------------------------------ */
+#else  /* no SIMD */
+
+double cml_simd_dot_product(const double *a, const double *b, size_t n)
+{
+    double sum = 0.0;
+    for (size_t i = 0; i < n; i++)
+        sum += a[i] * b[i];
+    return sum;
+}
+
+double cml_simd_euclidean_distance(const double *a, const double *b, size_t n)
+{
+    double sum = 0.0;
+    for (size_t i = 0; i < n; i++) {
+        double d = a[i] - b[i];
+        sum += d * d;
+    }
+    return sqrt(sum);
+}
+
+void cml_simd_vec_add(double *dst, const double *a, const double *b, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        dst[i] = a[i] + b[i];
+}
+
+void cml_simd_vec_scale(double *dst, const double *a, double s, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        dst[i] = a[i] * s;
+}
+
+void cml_simd_mat_vec_multiply(double *out, const double *mat,
+                               const double *vec, size_t rows, size_t cols)
+{
+    for (size_t r = 0; r < rows; r++) {
+        const double *row = mat + r * cols;
+        double sum = 0.0;
+        for (size_t c = 0; c < cols; c++)
+            sum += row[c] * vec[c];
+        out[r] = sum;
+    }
+}
+
+#endif /* SIMD dispatch */
 
 
 #endif /* CML_IMPLEMENTATION */

@@ -17,27 +17,40 @@ trap 'rm -rf "$TMPDIR"' EXIT
 # ── Header dependency order (low → high) ──────────────────────────────
 HEADERS=(
     matrix.h utils.h cml_error.h
-    vector.h csv.h metrics.h kmeans.h dbscan.h preprocessing.h knn.h onehot_encoder.h estimator.h
-    cml_serialization.h linear_regression.h logistic_regression.h ridge.h lasso.h svm.h naive_bayes.h decision_tree.h decomposition.h neural_network.h validation.h feature_selection.h
-    ensemble.h model_selection.h pipeline.h
+    vector.h csv.h metrics.h estimator.h
+    onehot_encoder.h cml_serialization.h
+    kmeans.h dbscan.h preprocessing.h knn.h
+    linear_regression.h logistic_regression.h ridge.h lasso.h svm.h
+    naive_bayes.h decision_tree.h decomposition.h
+    neural_network.h sgd.h validation.h feature_selection.h
+    ensemble.h gradient_boosting.h isolation_forest.h agglomerative.h
+    model_selection.h pipeline.h
+    cml_simd.h
 )
 
-# ── Source file order ─────────────────────────────────────────────────
+# ── Source file order (must match HEADERS order) ──────────────────────
 SOURCES=(
     matrix.c utils.c cml_error.c
-    vector.c csv.c metrics.c kmeans.c dbscan.c preprocessing.c knn.c onehot_encoder.c estimator.c
-    cml_serialization.c linear_regression.c logistic_regression.c ridge.c lasso.c svm.c naive_bayes.c decision_tree.c decomposition.c neural_network.c validation.c feature_selection.c
-    ensemble.c model_selection.c pipeline.c
+    vector.c csv.c metrics.c estimator.c
+    onehot_encoder.c cml_serialization.c
+    kmeans.c dbscan.c preprocessing.c knn.c
+    linear_regression.c logistic_regression.c ridge.c lasso.c svm.c
+    naive_bayes.c decision_tree.c decomposition.c
+    neural_network.c sgd.c validation.c feature_selection.c
+    ensemble.c gradient_boosting.c isolation_forest.c agglomerative.c
+    model_selection.c pipeline.c
+    cml_simd.c
 )
 
 # ── Duplicate static functions to rename ──────────────────────────────
 # Format: "funcname:module" — the function in module.c gets prefixed
 # euclidean_distance: in kmeans.c and knn.c (both static)
 # sigmoid: in neural_network.c (static), logistic_regression.c (public — rename the static one)
-# compute_mean/compute_variance: only in feature_selection.c (static, but unused warning — keep as-is)
+# shuffle_indices: in sgd.c (static with seed param), utils.c (public without seed)
 DUPLICATES=(
     "euclidean_distance:knn"
     "sigmoid:neural_network"
+    "shuffle_indices:sgd"
 )
 
 # ── Helper: strip include-guard lines from a header ───────────────────
@@ -47,11 +60,9 @@ strip_header_guards() {
       | sed -e '/^#endif \/\* [A-Z_]*_H/,${/^#endif/d}' \
       | sed -e '/^#endif$/d' \
       | grep -v '^$' | head -n -0
-    # Simpler approach: just remove the first #ifndef/#define pair and last #endif
     python3 -c "
 import sys
 lines = open('$file').readlines()
-# Find and remove first #ifndef GUARD and #define GUARD
 skip_guard = 0
 result = []
 for i, line in enumerate(lines):
@@ -62,11 +73,8 @@ for i, line in enumerate(lines):
         skip_guard = 2
         continue
     result.append(line)
-# Remove last #endif
 while result and result[-1].strip() in ('', '#endif', '#endif /*'):
     result.pop()
-# But keep comments like #endif /* FOO_H */
-# Re-add non-guard #endif
 sys.stdout.write(''.join(result))
 "
 }
@@ -82,18 +90,14 @@ i = 0
 while i < len(lines):
     line = lines[i]
     stripped = line.strip()
-    # Skip #ifndef GUARD_H
     if not guard_removed and stripped.startswith('#ifndef') and re.search(r'_H\b', stripped):
         guard_removed = True
         i += 1
         continue
-    # Skip #define GUARD_H  
     if guard_removed and stripped.startswith('#define') and re.search(r'_H\b', stripped):
         i += 1
         continue
-    # Strip local includes (\"header.h\") — amalgamation has them inlined
     if re.match(r'#include\s+\".*\.h\"', stripped):
-        # Keep only the comment if present
         comment_start = line.find('//')
         if comment_start >= 0:
             out.append(line[comment_start:])
@@ -101,7 +105,6 @@ while i < len(lines):
         continue
     out.append(line)
     i += 1
-# Remove trailing blank lines and last #endif
 while out and out[-1].strip() == '':
     out.pop()
 if out and out[-1].strip().startswith('#endif'):
@@ -115,7 +118,6 @@ process_source() {
     local srcfile="$1"
     local basename="$(basename "$srcfile" .c)"
     
-    # Build sed expressions for duplicate renaming
     local sed_expr=""
     for dup in "${DUPLICATES[@]}"; do
         local func="${dup%%:*}"
@@ -125,7 +127,6 @@ process_source() {
         fi
     done
     
-    # Process: strip local includes, rename duplicates
     if [ -n "$sed_expr" ]; then
         grep -v '#include ".*\.h"' "$srcfile" | sed -e "$sed_expr"
     else
@@ -133,14 +134,10 @@ process_source() {
     fi
 }
 
-# ── Also need to handle: public sigmoid in logistic_regression.c ──────
-# It's not static, so in single-header mode it will conflict with the
-# (now renamed) neural_network_sigmoid. That's fine — only one sigmoid remains public.
-
 # ── Generate tinycml.h ────────────────────────────────────────────────
 {
     echo "/* tinycml v0.1.0 - single-header ML library */"
-    echo "/* https://github.com/sametyilmaztemel/tinycml */"
+    echo "/* https://github.com/tinyrlabs/tinycml */"
     echo "/*"
     echo " * SINGLE-HEADER AMALGAMATION"
     echo " *"
