@@ -228,7 +228,7 @@ The library has been validated on the following platforms:
 
 ```bash
 # Clone repository
-git clone https://github.com/sametyilmaztemel/tinycml.git
+git clone https://github.com/tinylabs/tinycml.git
 cd tinycml
 
 # Build library and examples
@@ -643,7 +643,7 @@ Kütüphane aşağıdaki platformlarda doğrulanmıştır:
 
 ```bash
 # Depoyu klonlayın
-git clone https://github.com/sametyilmaztemel/tinycml.git
+git clone https://github.com/tinylabs/tinycml.git
 cd tinycml
 
 # Kütüphane ve örnekleri derleyin
