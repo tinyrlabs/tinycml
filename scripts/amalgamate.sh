@@ -53,6 +53,35 @@ DUPLICATES=(
     "shuffle_indices:sgd"
 )
 
+# ── Feature flag map: source basename → CML_ENABLE_XXX ──────────────
+# Core modules (always compiled): matrix, utils, cml_error, vector, csv,
+#   metrics, estimator, onehot_encoder, cml_serialization, validation,
+#   preprocessing, cml_simd
+# Algorithm modules (conditional):
+declare -A FLAG_MAP
+FLAG_MAP[kmeans]="CML_ENABLE_KMEANS"
+FLAG_MAP[dbscan]="CML_ENABLE_DBSCAN"
+# preprocessing is core (add_bias_column used by linear_regression)
+FLAG_MAP[preprocessing]=""
+FLAG_MAP[knn]="CML_ENABLE_KNN"
+FLAG_MAP[linear_regression]="CML_ENABLE_LINEAR_REGRESSION"
+FLAG_MAP[logistic_regression]="CML_ENABLE_LOGISTIC_REGRESSION"
+FLAG_MAP[ridge]="CML_ENABLE_RIDGE"
+FLAG_MAP[lasso]="CML_ENABLE_LASSO"
+FLAG_MAP[svm]="CML_ENABLE_SVM"
+FLAG_MAP[naive_bayes]="CML_ENABLE_NAIVE_BAYES"
+FLAG_MAP[decision_tree]="CML_ENABLE_DECISION_TREE"
+FLAG_MAP[decomposition]="CML_ENABLE_PCA"
+FLAG_MAP[neural_network]="CML_ENABLE_NEURAL_NETWORK"
+FLAG_MAP[sgd]="CML_ENABLE_SGD"
+FLAG_MAP[feature_selection]="CML_ENABLE_FEATURE_SELECTION"
+FLAG_MAP[ensemble]="CML_ENABLE_RANDOM_FOREST"
+FLAG_MAP[gradient_boosting]="CML_ENABLE_GRADIENT_BOOSTING"
+FLAG_MAP[isolation_forest]="CML_ENABLE_ISOLATION_FOREST"
+FLAG_MAP[agglomerative]="CML_ENABLE_AGGLOMERATIVE"
+FLAG_MAP[model_selection]="CML_ENABLE_MODEL_SELECTION"
+FLAG_MAP[pipeline]="CML_ENABLE_PIPELINE"
+
 # ── Helper: strip include-guard lines from a header ───────────────────
 strip_header_guards() {
     local file="$1"
@@ -155,6 +184,40 @@ process_source() {
     echo "#define TINYCML_H"
     echo ""
     echo "/* ============================================================"
+    echo " * Feature Flag Configuration"
+    echo " * ============================================================"
+    echo " * Define CML_ENABLE_XXX before CML_IMPLEMENTATION to select"
+    echo " * which algorithms to include. Core modules are always included."
+    echo " *"
+    echo " * If no CML_ENABLE_* is defined, CML_ENABLE_ALL is assumed."
+    echo " * ============================================================ */"
+    echo ""
+    echo "#if !defined(CML_ENABLE_KNN) && \\"
+    echo "    !defined(CML_ENABLE_NAIVE_BAYES) && \\"
+    echo "    !defined(CML_ENABLE_LINEAR_REGRESSION) && \\"
+    echo "    !defined(CML_ENABLE_LOGISTIC_REGRESSION) && \\"
+    echo "    !defined(CML_ENABLE_RIDGE) && \\"
+    echo "    !defined(CML_ENABLE_LASSO) && \\"
+    echo "    !defined(CML_ENABLE_SVM) && \\"
+    echo "    !defined(CML_ENABLE_DECISION_TREE) && \\"
+    echo "    !defined(CML_ENABLE_RANDOM_FOREST) && \\"
+    echo "    !defined(CML_ENABLE_GRADIENT_BOOSTING) && \\"
+    echo "    !defined(CML_ENABLE_KMEANS) && \\"
+    echo "    !defined(CML_ENABLE_DBSCAN) && \\"
+    echo "    !defined(CML_ENABLE_AGGLOMERATIVE) && \\"
+    echo "    !defined(CML_ENABLE_ISOLATION_FOREST) && \\"
+    echo "    !defined(CML_ENABLE_PCA) && \\"
+    echo "    !defined(CML_ENABLE_NEURAL_NETWORK) && \\"
+    echo "    !defined(CML_ENABLE_SGD) && \\"
+    echo "    !defined(CML_ENABLE_PREPROCESSING) && \\"
+    echo "    !defined(CML_ENABLE_FEATURE_SELECTION) && \\"
+    echo "    !defined(CML_ENABLE_MODEL_SELECTION) && \\"
+    echo "    !defined(CML_ENABLE_PIPELINE) && \\"
+    echo "    !defined(CML_ENABLE_SERIALIZATION)"
+    echo "#define CML_ENABLE_ALL"
+    echo "#endif"
+    echo ""
+    echo "/* ============================================================"
     echo " * Embedded Configuration"
     echo " * ============================================================"
     echo " * Define these BEFORE including tinycml.h to use static pool:"
@@ -198,10 +261,24 @@ process_source() {
     echo ""
 
     for s in "${SOURCES[@]}"; do
-        echo "/* --- $s --- */"
-        process_source "$PROJECT_DIR/src/$s"
-        echo ""
-        echo ""
+        basename="${s%.c}"
+        flag="${FLAG_MAP[$basename]:-}"
+
+        if [ -n "$flag" ]; then
+            # Algorithm module — guard with feature flag
+            echo "/* --- $s --- */"
+            echo "#if defined($flag) || defined(CML_ENABLE_ALL)"
+            process_source "$PROJECT_DIR/src/$s"
+            echo "#endif /* $flag */"
+            echo ""
+            echo ""
+        else
+            # Core module — always include
+            echo "/* --- $s --- */"
+            process_source "$PROJECT_DIR/src/$s"
+            echo ""
+            echo ""
+        fi
     done
 
     echo "#endif /* CML_IMPLEMENTATION */"
