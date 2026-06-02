@@ -98,6 +98,17 @@ static int embedded_printf(const char *fmt, ...) {
 #define printf embedded_printf
 
 /* ============================================================
+ * tinycml-embed configuration
+ * Minimal ML on STM32F4: KNN for comfort prediction
+ * ============================================================ */
+#define CML_ENABLE_KNN
+#define CML_USE_POOL
+#define CML_POOL_SIZE 2048
+
+#include "cml_config.h"
+#include "cml_pool.h"
+
+/* ============================================================
  * tinycml — single-header mode
  * ============================================================ */
 #define CML_IMPLEMENTATION
@@ -150,6 +161,9 @@ static const char *comfort_labels[] = { "UNCOMFORTABLE", "COMFORTABLE" };
  * main — entry point for bare-metal
  * ============================================================ */
 int main(void) {
+    /* --- Initialize memory pool --- */
+    cml_pool_init();
+
     /* --- Board init (replace with your HAL init) --- */
     /* SystemClock_Config(); */
     /* MX_GPIO_Init(); */
