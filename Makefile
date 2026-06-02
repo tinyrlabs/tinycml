@@ -48,7 +48,11 @@ EXAMPLE_BINS = $(patsubst %,$(EXAMPLES_DIR)/%,$(EXAMPLES))
 TESTS = test_matrix test_linreg test_logreg test_logreg_model test_knn test_kmeans test_metrics test_decision_tree test_naive_bayes test_nn test_pca test_preprocessing test_svm test_onehot test_metrics_multiclass test_svm_proba test_knn_proba test_feature_selection test_pipeline test_model_selection test_ridge test_lasso test_softmax test_multinomial_nb test_svm_rbf test_dbscan test_cml_error test_csv_robust test_serialization test_silhouette
 TEST_BINS = $(patsubst %,$(TEST_DIR)/%,$(TESTS))
 
-.PHONY: all build library static shared examples tests test clean install uninstall docs help
+.PHONY: all build library static shared examples tests test clean install uninstall docs help single_header
+
+# Single-header amalgamation
+single_header:
+	bash scripts/amalgamate.sh
 
 all: build
 
@@ -162,6 +166,7 @@ help:
 	@echo "  docs     - Generate documentation with Doxygen"
 	@echo "  install  - Install headers, libraries, and pkg-config file"
 	@echo "  uninstall- Remove installed files"
+	@echo "  single_header - Generate single-header tinycml.h amalgamation"
 	@echo "  clean    - Remove build directory"
 	@echo ""
 	@echo "Variables:"
