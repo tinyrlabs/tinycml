@@ -2,7 +2,7 @@
 # Tiny C Machine Learning Library - Direct compilation without CMake dependency
 
 CC = cc
-CFLAGS = -std=c11 -Wall -Wextra -pedantic -O2
+CFLAGS = -std=c11 -Wall -Wextra -pedantic -O2 -march=native
 ifeq ($(OPENMP),1)
 CFLAGS += -fopenmp
 endif
@@ -45,7 +45,7 @@ EXAMPLES = linear_regression_example logistic_regression_example knn_example kme
 EXAMPLE_BINS = $(patsubst %,$(EXAMPLES_DIR)/%,$(EXAMPLES))
 
 # Tests
-TESTS = test_matrix test_linreg test_logreg test_logreg_model test_knn test_kmeans test_metrics test_decision_tree test_naive_bayes test_nn test_pca test_preprocessing test_svm test_onehot test_metrics_multiclass test_svm_proba test_knn_proba test_feature_selection test_pipeline test_model_selection test_ridge test_lasso test_softmax test_multinomial_nb test_svm_rbf test_dbscan test_cml_error test_csv_robust test_serialization test_silhouette test_gradient_boosting test_sgd test_isolation_forest test_agglomerative
+TESTS = test_matrix test_linreg test_logreg test_logreg_model test_knn test_kmeans test_metrics test_decision_tree test_naive_bayes test_nn test_pca test_preprocessing test_svm test_onehot test_metrics_multiclass test_svm_proba test_knn_proba test_feature_selection test_pipeline test_model_selection test_ridge test_lasso test_softmax test_multinomial_nb test_svm_rbf test_dbscan test_cml_error test_csv_robust test_serialization test_silhouette test_gradient_boosting test_sgd test_isolation_forest test_agglomerative test_simd
 TEST_BINS = $(patsubst %,$(TEST_DIR)/%,$(TESTS))
 
 .PHONY: all build library static shared examples tests test clean install uninstall docs help single_header cli benchmark
