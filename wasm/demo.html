@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TinyCML — ML in Your Browser</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a0a;
+    color: #c0c0c0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+}
+.container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+h1 {
+    font-size: 28px; font-weight: 700; color: #fff;
+    margin-bottom: 4px; letter-spacing: -0.5px;
+}
+.subtitle { color: #666; font-size: 13px; margin-bottom: 30px; }
+.controls {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+    align-items: center;
+}
+.controls label { color: #888; font-size: 12px; }
+.controls select, .controls button, .controls input {
+    background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+    font-family: inherit; font-size: 13px; padding: 8px 14px;
+    border-radius: 4px; cursor: pointer;
+}
+.controls button {
+    background: #222; border-color: #444;
+    transition: all 0.15s;
+}
+.controls button:hover { background: #333; border-color: #666; }
+.controls button.active { background: #1a3a1a; border-color: #4a4; color: #4f4; }
+.controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.canvas-wrap {
+    flex: 1; min-width: 400px;
+    background: #111; border: 1px solid #222; border-radius: 6px;
+    padding: 12px; position: relative;
+}
+canvas { width: 100%; aspect-ratio: 1; display: block; border-radius: 4px; }
+.sidebar {
+    width: 320px; display: flex; flex-direction: column; gap: 14px;
+}
+.panel {
+    background: #111; border: 1px solid #222; border-radius: 6px;
+    padding: 14px;
+}
+.panel h3 { font-size: 13px; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat { display: flex; justify-content: space-between; padding: 4px 0; }
+.stat .label { color: #666; }
+.stat .value { color: #e0e0e0; font-weight: 600; }
+.stat .value.green { color: #4f4; }
+.stat .value.red { color: #f44; }
+.log-area {
+    background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 4px;
+    padding: 10px; font-size: 11px; max-height: 200px; overflow-y: auto;
+    color: #777;
+}
+.log-area .entry { margin-bottom: 2px; }
+.log-area .entry.success { color: #4a4; }
+.log-area .entry.error { color: #a44; }
+.legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+@media (max-width: 800px) {
+    .row { flex-direction: column; }
+    .sidebar { width: 100%; }
+    .canvas-wrap { min-width: unset; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>tinycml</h1>
+    <p class="subtitle">machine learning in your browser — compiled to wasm</p>
+
+    <div class="controls">
+        <label>Dataset:</label>
+        <select id="dataset">
+            <option value="moons">Two Moons</option>
+            <option value="circles">Concentric Circles</option>
+            <option value="xor">XOR Pattern</option>
+            <option value="linear">Linear Separable</option>
+            <option value="spiral">Spiral</option>
+        </select>
+
+        <label>Model:</label>
+        <select id="model">
+            <option value="logreg">Logistic Regression</option>
+            <option value="knn">KNN (k=5)</option>
+            <option value="nb">Gaussian NB</option>
+            <option value="dtree">Decision Tree</option>
+        </select>
+
+        <label>Samples:</label>
+        <input type="range" id="nSamples" min="50" max="500" value="200" style="width:100px">
+        <span id="nSamplesVal" style="font-size:12px;color:#888">200</span>
+
+        <button id="btnGenerate" onclick="generateData()">Generate</button>
+        <button id="btnTrain" onclick="trainModel()" disabled>Train</button>
+    </div>
+
+    <div class="row">
+        <div class="canvas-wrap">
+            <canvas id="canvas" width="600" height="600"></canvas>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#4af"></div>Class 0</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#f4a"></div>Class 1</div>
+                <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.15)"></div>Decision Boundary</div>
+            </div>
+        </div>
+        <div class="sidebar">
+            <div class="panel">
+                <h3>Results</h3>
+                <div class="stat"><span class="label">Accuracy</span><span class="value" id="accuracy">—</span></div>
+                <div class="stat"><span class="label">Train Time</span><span class="value" id="trainTime">—</span></div>
+                <div class="stat"><span class="label">Predict Time</span><span class="value" id="predictTime">—</span></div>
+                <div class="stat"><span class="label">Samples</span><span class="value" id="nSamplesStat">—</span></div>
+                <div class="stat"><span class="label">Model</span><span class="value" id="modelStat">—</span></div>
+            </div>
+            <div class="panel">
+                <h3>Log</h3>
+                <div class="log-area" id="log"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─── Data Generation ─────────────────────────────────────────────
+// (Pure JS — works without WASM for data gen)
+
+let dataX = null, dataY = null;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function log(msg, type = '') {
+    const el = document.getElementById('log');
+    const entry = document.createElement('div');
+    entry.className = 'entry' + (type ? ' ' + type : '');
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    el.appendChild(entry);
+    el.scrollTop = el.scrollHeight;
+}
+
+function generateData() {
+    const type = document.getElementById('dataset').value;
+    const n = parseInt(document.getElementById('nSamples').value);
+    document.getElementById('nSamplesVal').textContent = n;
+
+    dataX = []; dataY = [];
+
+    if (type === 'moons') {
+        for (let i = 0; i < n; i++) {
+            const t = Math.PI * (i / (n / 2));
+            const noise = (Math.random() - 0.5) * 0.3;
+            if (i < n / 2) {
+                dataX.push([Math.cos(t) + noise, Math.sin(t) + noise]);
+                dataY.push(0);
+            } else {
+                dataX.push([1 - Math.cos(t) + noise, 0.5 - Math.sin(t) + noise]);
+                dataY.push(1);
+            }
+        }
+    } else if (type === 'circles') {
+        for (let i = 0; i < n; i++) {
+            const r = i < n / 2 ? 0.5 : 1.5;
+            const angle = Math.random() * 2 * Math.PI;
+            const noise = (Math.random() - 0.5) * 0.2;
+            dataX.push([r * Math.cos(angle) + noise, r * Math.sin(angle) + noise]);
+            dataY.push(i < n / 2 ? 0 : 1);
+        }
+    } else if (type === 'xor') {
+        for (let i = 0; i < n; i++) {
+            const x = (Math.random() - 0.5) * 4;
+            const y = (Math.random() - 0.5) * 4;
+            dataX.push([x, y]);
+            dataY.push((x * y > 0) ? 1 : 0);
+        }
+    } else if (type === 'linear') {
+        for (let i = 0; i < n; i++) {
+            const x = (Math.random() - 0.5) * 4;
+            const y = (Math.random() - 0.5) * 4;
+            dataX.push([x, y]);
+            dataY.push (x + 0.5 * y > 0 ? 1 : 0);
+        }
+    } else if (type === 'spiral') {
+        for (let i = 0; i < n; i++) {
+            const cls = i < n / 2 ? 0 : 1;
+            const r = (i % (n / 2)) / (n / 2) * 3;
+            const t = r * 2 + cls * Math.PI;
+            const noise = (Math.random() - 0.5) * 0.3;
+            dataX.push([r * Math.cos(t) + noise, r * Math.sin(t) + noise]);
+            dataY.push(cls);
+        }
+    }
+
+    document.getElementById('btnTrain').disabled = false;
+    document.getElementById('nSamplesStat').textContent = n;
+    document.getElementById('accuracy').textContent = '—';
+    document.getElementById('trainTime').textContent = '—';
+    document.getElementById('predictTime').textContent = '—';
+    drawData();
+    log(`Generated ${n} samples (${type})`);
+}
+
+function drawData() {
+    if (!dataX) return;
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, 600, 600);
+
+    const margin = 40;
+    const w = 600 - 2 * margin;
+
+    // Find bounds
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (const [x, y] of dataX) {
+        if (x < xMin) xMin = x; if (x > xMax) xMax = x;
+        if (y < yMin) yMin = y; if (y > yMax) yMax = y;
+    }
+    const pad = 0.5;
+    xMin -= pad; xMax += pad; yMin -= pad; yMax += pad;
+
+    const scaleX = (v) => margin + ((v - xMin) / (xMax - xMin)) * w;
+    const scaleY = (v) => margin + ((v - yMin) / (yMax - yMin)) * w;
+
+    // Draw points
+    for (let i = 0; i < dataX.length; i++) {
+        const [x, y] = dataX[i];
+        ctx.beginPath();
+        ctx.arc(scaleX(x), scaleY(y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = dataY[i] === 0 ? '#4af' : '#f4a';
+        ctx.fill();
+    }
+
+    // Draw axes
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin, margin); ctx.lineTo(margin, 600 - margin);
+    ctx.lineTo(600 - margin, 600 - margin);
+    ctx.stroke();
+}
+
+function drawBoundary(predictFn) {
+    if (!dataX) return;
+
+    const margin = 40;
+    const w = 600 - 2 * margin;
+    const resolution = 80;
+
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (const [x, y] of dataX) {
+        if (x < xMin) xMin = x; if (x > xMax) xMax = x;
+        if (y < yMin) yMin = y; if (y > yMax) yMax = y;
+    }
+    const pad = 0.5;
+    xMin -= pad; xMax += pad; yMin -= pad; yMax += pad;
+
+    const scaleX = (v) => margin + ((v - xMin) / (xMax - xMin)) * w;
+    const scaleY = (v) => margin + ((v - yMin) / (yMax - yMin)) * w;
+
+    // Draw decision boundary as colored pixels
+    const cellW = w / resolution;
+    for (let i = 0; i < resolution; i++) {
+        for (let j = 0; j < resolution; j++) {
+            const x = xMin + (i / resolution) * (xMax - xMin);
+            const y = yMin + (j / resolution) * (yMax - yMin);
+            const pred = predictFn(x, y);
+            const alpha = 0.15;
+            if (pred === 0) {
+                ctx.fillStyle = `rgba(68, 170, 255, ${alpha})`;
+            } else {
+                ctx.fillStyle = `rgba(255, 68, 170, ${alpha})`;
+            }
+            ctx.fillRect(scaleX(x) - cellW / 2, scaleY(y) - cellW / 2, cellW + 1, cellW + 1);
+        }
+    }
+
+    // Redraw points on top
+    for (let i = 0; i < dataX.length; i++) {
+        const [x, y] = dataX[i];
+        ctx.beginPath();
+        ctx.arc(scaleX(x), scaleY(y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = dataY[i] === 0 ? '#4af' : '#f4a';
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    }
+}
+
+// ─── JS Model Implementations (pure JS fallback) ─────────────────
+
+function trainJSLogreg(X, y) {
+    // Simple gradient descent logistic regression
+    const n = X.length, d = X[0].length;
+    const w = new Float64Array(d);
+    let b = 0;
+    const lr = 0.5, epochs = 300;
+
+    for (let e = 0; e < epochs; e++) {
+        for (let i = 0; i < n; i++) {
+            let z = b;
+            for (let j = 0; j < d; j++) z += w[j] * X[i][j];
+            const p = 1 / (1 + Math.exp(-z));
+            const grad = p - y[i];
+            for (let j = 0; j < d; j++) w[j] -= lr * grad * X[i][j] / n;
+            b -= lr * grad / n;
+        }
+    }
+
+    return (x1, x2) => (w[0] * x1 + w[1] * x2 + b >= 0) ? 1 : 0;
+}
+
+function trainJSKNN(X, y, k = 5) {
+    return (x1, x2) => {
+        const dists = X.map(([a, b], i) => ({ d: (a - x1) ** 2 + (b - x2) ** 2, c: y[i] }));
+        dists.sort((a, b) => a.d - b.d);
+        let v0 = 0, v1 = 0;
+        for (let i = 0; i < k; i++) dists[i].c === 0 ? v0++ : v1++;
+        return v1 > v0 ? 1 : 0;
+    };
+}
+
+function trainJSNB(X, y) {
+    const cls0 = X.filter((_, i) => y[i] === 0);
+    const cls1 = X.filter((_, i) => y[i] === 1);
+    const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+    const var_ = (arr, m) => arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length;
+
+    const stats = [cls0, cls1].map(cls => {
+        const col0 = cls.map(r => r[0]), col1 = cls.map(r => r[1]);
+        return { m0: mean(col0), v0: var_(col0, mean(col0)) + 1e-9,
+                 m1: mean(col1), v1: var_(col1, mean(col1)) + 1e-9,
+                 prior: cls.length / X.length };
+    });
+
+    return (x1, x2) => {
+        const logP = stats.map(s => {
+            return Math.log(s.prior)
+                - 0.5 * Math.log(s.v0) - (x1 - s.m0) ** 2 / (2 * s.v0)
+                - 0.5 * Math.log(s.v1) - (x2 - s.m1) ** 2 / (2 * s.v1);
+        });
+        return logP[1] > logP[0] ? 1 : 0;
+    };
+}
+
+function trainJSDTree(X, y, maxDepth = 8) {
+    function build(indices, depth) {
+        if (indices.length === 0) return { leaf: true, cls: 0 };
+        const c0 = indices.filter(i => y[i] === 0).length;
+        const c1 = indices.length - c0;
+        if (depth >= maxDepth || c0 === 0 || c1 === 0) {
+            return { leaf: true, cls: c1 > c0 ? 1 : 0 };
+        }
+
+        let bestGini = 1, bestFeat = 0, bestThresh = 0, bestL = [], bestR = [];
+        for (let f = 0; f < 2; f++) {
+            const vals = indices.map(i => X[i][f]).sort((a, b) => a - b);
+            for (let t = 0; t < vals.length - 1; t++) {
+                const thresh = (vals[t] + vals[t + 1]) / 2;
+                const left = indices.filter(i => X[i][f] < thresh);
+                const right = indices.filter(i => X[i][f] >= thresh);
+                if (left.length === 0 || right.length === 0) continue;
+
+                const gini = (arr) => {
+                    const c = arr.filter(i => y[i] === 1).length;
+                    const p = c / arr.length;
+                    return 2 * p * (1 - p);
+                };
+                const g = (left.length * gini(left) + right.length * gini(right)) / indices.length;
+                if (g < bestGini) {
+                    bestGini = g; bestFeat = f; bestThresh = thresh;
+                    bestL = left; bestR = right;
+                }
+            }
+        }
+
+        if (bestL.length === 0) return { leaf: true, cls: c1 > c0 ? 1 : 0 };
+
+        return {
+            leaf: false, feat: bestFeat, thresh: bestThresh,
+            left: build(bestL, depth + 1),
+            right: build(bestR, depth + 1)
+        };
+    }
+
+    const tree = build(X.map((_, i) => i), 0);
+
+    return (x1, x2) => {
+        let node = tree;
+        const vals = [x1, x2];
+        while (!node.leaf) {
+            node = vals[node.feat] < node.thresh ? node.left : node.right;
+        }
+        return node.cls;
+    };
+}
+
+// ─── Train ────────────────────────────────────────────────────────
+
+function trainModel() {
+    if (!dataX) return;
+    const modelName = document.getElementById('model').value;
+    document.getElementById('modelStat').textContent = modelName;
+
+    const t0 = performance.now();
+    let predictFn;
+
+    switch (modelName) {
+        case 'logreg': predictFn = trainJSLogreg(dataX, dataY); break;
+        case 'knn': predictFn = trainJSKNN(dataX, dataY, 5); break;
+        case 'nb': predictFn = trainJSNB(dataX, dataY); break;
+        case 'dtree': predictFn = trainJSDTree(dataX, dataY); break;
+    }
+
+    const trainMs = (performance.now() - t0).toFixed(1);
+    document.getElementById('trainTime').textContent = trainMs + ' ms';
+    log(`Trained ${modelName} in ${trainMs}ms`, 'success');
+
+    // Compute accuracy
+    const t1 = performance.now();
+    let correct = 0;
+    for (let i = 0; i < dataX.length; i++) {
+        if (predictFn(dataX[i][0], dataX[i][1]) === dataY[i]) correct++;
+    }
+    const acc = (correct / dataX.length * 100).toFixed(1);
+    const predMs = (performance.now() - t1).toFixed(1);
+
+    document.getElementById('accuracy').textContent = acc + '%';
+    document.getElementById('accuracy').className = 'value ' + (parseFloat(acc) > 85 ? 'green' : 'red');
+    document.getElementById('predictTime').textContent = predMs + ' ms';
+    log(`Accuracy: ${acc}% (${correct}/${dataX.length})`, 'success');
+
+    // Draw decision boundary
+    drawData();
+    drawBoundary(predictFn);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
+document.getElementById('nSamples').addEventListener('input', (e) => {
+    document.getElementById('nSamplesVal').textContent = e.target.value;
+});
+
+log('tinycml browser demo loaded');
+log('Pure JS models — compile tinycml to WASM for native speed');
+generateData();
+</script>
+</body>
+</html>
