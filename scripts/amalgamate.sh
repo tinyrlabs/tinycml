@@ -91,6 +91,14 @@ while i < len(lines):
     if guard_removed and stripped.startswith('#define') and re.search(r'_H\b', stripped):
         i += 1
         continue
+    # Strip local includes (\"header.h\") — amalgamation has them inlined
+    if re.match(r'#include\s+\".*\.h\"', stripped):
+        # Keep only the comment if present
+        comment_start = line.find('//')
+        if comment_start >= 0:
+            out.append(line[comment_start:])
+        i += 1
+        continue
     out.append(line)
     i += 1
 # Remove trailing blank lines and last #endif

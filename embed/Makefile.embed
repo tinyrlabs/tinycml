@@ -19,6 +19,7 @@ ARM_AR    = arm-none-eabi-ar
 ARM_CFLAGS = -mcpu=cortex-m4 -mthumb -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib
 
 ESP_CC    = xtensa-esp32-elf-gcc
+ESP_AR    = xtensa-esp32-elf-ar
 ESP_CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -mlongcalls
 
 RV_CC     = riscv-none-elf-gcc
@@ -64,8 +65,8 @@ $(EMBED_DIR)/tinycml_embed.c:
 	@mkdir -p $(EMBED_DIR)
 	@echo '/* Auto-generated */' > $(EMBED_DIR)/tinycml_embed.c
 	@echo '#include "cml_config.h"' >> $(EMBED_DIR)/tinycml_embed.c
-	@echo '#include "cml_pool.h"' >> $(EMBED_DIR)/tinycml_embed.c
 	@echo '#define CML_IMPLEMENTATION' >> $(EMBED_DIR)/tinycml_embed.c
+	@echo '#include "cml_pool.h"' >> $(EMBED_DIR)/tinycml_embed.c
 	@echo '#include "../tinycml.h"' >> $(EMBED_DIR)/tinycml_embed.c
 
 # ── ARM Cortex-M ──────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ esp32: $(EMBED_DIR)/tinycml_embed.c
 	mkdir -p $(BUILD_DIR)/esp32
 	$(ESP_CC) $(ESP_CFLAGS) $(CML_FLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
 		-c $(EMBED_DIR)/tinycml_embed.c -o $(BUILD_DIR)/esp32/tinycml.o
-	$(ARM_AR) rcs $(BUILD_DIR)/esp32/libtinycml.a $(BUILD_DIR)/esp32/tinycml.o
+	$(ESP_AR) rcs $(BUILD_DIR)/esp32/libtinycml.a $(BUILD_DIR)/esp32/tinycml.o
 	@echo "ESP32: $(BUILD_DIR)/esp32/libtinycml.a"
 	@size $(BUILD_DIR)/esp32/tinycml.o 2>/dev/null || true
 
@@ -107,8 +108,8 @@ native: $(EMBED_DIR)/tinycml_embed.c
 # ── Native test ───────────────────────────────────────────────────────
 test_native: native
 	$(NATIVE_CC) $(NATIVE_CFLAGS) -I$(SRC_DIR) -I$(EMBED_DIR) \
-		examples/embedded/stm32/main.c $(BUILD_DIR)/native/tinycml.o -lm -o $(BUILD_DIR)/native/tinycml_stm32_test
-	$(BUILD_DIR)/native/tinycml_stm32_test
+		examples/embedded/test_embed_native.c $(BUILD_DIR)/native/tinycml.o -lm -o $(BUILD_DIR)/native/test_embed
+	$(BUILD_DIR)/native/test_embed
 
 # ── Code size report ──────────────────────────────────────────────────
 size_report: arm
