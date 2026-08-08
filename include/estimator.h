@@ -29,7 +29,8 @@ typedef enum {
     MODEL_SVM,
     MODEL_PCA,
     MODEL_FEATURE_SELECTOR,
-    MODEL_GRADIENT_BOOSTING
+    MODEL_GRADIENT_BOOSTING,
+    MODEL_CNN
 } ModelType;
 
 /**
