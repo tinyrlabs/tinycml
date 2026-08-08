@@ -92,3 +92,39 @@ Matrix* maxpool2d_forward(MaxPool2D *layer, const Matrix *input,
 
     return output;
 }
+
+Matrix* maxpool2d_backward(MaxPool2D *layer, const Matrix *dout) {
+    if (!layer->argmax_cache) return NULL;
+
+    int n = layer->input_n;
+    int c = layer->input_c;
+    int h = layer->input_h;
+    int w = layer->input_w;
+    int ph = layer->pool_h;
+    int pw = layer->pool_w;
+    int sh = layer->stride_h;
+    int sw = layer->stride_w;
+
+    int out_h = pool2d_out_size(h, ph, sh);
+    int out_w = pool2d_out_size(w, pw, sw);
+
+    Matrix *dimg = matrix_alloc((size_t)n, (size_t)c * h * w);
+    if (!dimg) return NULL;
+
+    for (int ni = 0; ni < n; ni++) {
+        for (int ci = 0; ci < c; ci++) {
+            size_t out_offset = (size_t)ni * c * out_h * out_w + (size_t)ci * out_h * out_w;
+
+            for (int oy = 0; oy < out_h; oy++) {
+                for (int ox = 0; ox < out_w; ox++) {
+                    int cache_idx = ni * c * out_h * out_w + ci * out_h * out_w + oy * out_w + ox;
+                    int max_pos = layer->argmax_cache[cache_idx];
+                    double grad = dout->data[out_offset + (size_t)oy * out_w + ox];
+                    dimg->data[max_pos] += grad;
+                }
+            }
+        }
+    }
+
+    return dimg;
+}

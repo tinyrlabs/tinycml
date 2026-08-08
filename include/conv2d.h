@@ -85,6 +85,17 @@ Conv2D* conv2d_create_with_weights(int in_c, int out_c, int kh, int kw,
 /** Free Conv2D and all internal allocations. */
 void conv2d_free(Conv2D *layer);
 
+/**
+ * Compute gradients (backward pass). Must call forward() first.
+ * @return Gradient w.r.t. input, caller frees.
+ */
+Matrix* conv2d_backward(Conv2D *layer, const Matrix *dout);
+
+/**
+ * Apply accumulated gradients with SGD step.
+ */
+void conv2d_update_weights(Conv2D *layer, double learning_rate);
+
 /* ============================================
  * Forward Pass
  * ============================================ */
@@ -134,6 +145,20 @@ int conv2d_out_size(int input_size, int kernel, int stride, int pad);
  * @return Column matrix ((C*kh*kw) × (N*out_h*out_w)), caller frees.
  */
 Matrix* im2col(const Matrix *input, int n, int c, int h, int w,
+               int kh, int kw, int sh, int sw, int ph, int pw);
+
+/**
+ * col2im — reverse of im2col.
+ * Accumulates gradient columns back into image gradient.
+ *
+ * @param dcol    Gradient of loss w.r.t. col matrix ((C*kh*kw) × (N*out_h*out_w))
+ * @param n,c,h,w Original input dimensions
+ * @param kh,kw   Kernel size
+ * @param sh,sw   Stride
+ * @param ph,pw   Padding
+ * @return Image gradient (N × C*H*W), caller frees.
+ */
+Matrix* col2im(const Matrix *dcol, int n, int c, int h, int w,
                int kh, int kw, int sh, int sw, int ph, int pw);
 
 #ifdef __cplusplus

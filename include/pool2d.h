@@ -43,6 +43,14 @@ MaxPool2D* maxpool2d_create(int ph, int pw, int sh, int sw);
 void maxpool2d_free(MaxPool2D *layer);
 
 /**
+ * Backward pass — route gradients to argmax positions.
+ * @param layer  Must have forward() called first
+ * @param dout   Gradient from upstream (N × C*out_h*out_w)
+ * @return Gradient w.r.t. input (N × C*H*W), caller frees.
+ */
+Matrix* maxpool2d_backward(MaxPool2D *layer, const Matrix *dout);
+
+/**
  * Run max pooling forward pass.
  *
  * @param layer  MaxPool2D layer

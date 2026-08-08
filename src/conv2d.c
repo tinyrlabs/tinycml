@@ -218,3 +218,139 @@ Matrix* conv2d_forward(Conv2D *layer, const Matrix *input,
     matrix_free(gemm_result);
     return output;
 }
+
+/* ============================================
+ * col2im
+ * ============================================ */
+
+Matrix* col2im(const Matrix *dcol, int n, int c, int h, int w,
+               int kh, int kw, int sh, int sw, int ph, int pw) {
+    int out_h = conv2d_out_size(h, kh, sh, ph);
+    int out_w = conv2d_out_size(w, kw, sw, pw);
+
+    Matrix *dimg = matrix_alloc((size_t)n, (size_t)c * h * w);
+    if (!dimg) return NULL;
+    /* Already zero-initialized by matrix_alloc */
+
+    /* Reverse the im2col mapping: accumulate column values back to image positions */
+    for (int ni = 0; ni < n; ni++) {
+        for (int ci = 0; ci < c; ci++) {
+            for (int ky = 0; ky < kh; ky++) {
+                for (int kx = 0; kx < kw; kx++) {
+                    int row_idx = (ci * kh + ky) * kw + kx;
+
+                    for (int oy = 0; oy < out_h; oy++) {
+                        for (int ox = 0; ox < out_w; ox++) {
+                            int iy = oy * sh + ky - ph;
+                            int ix = ox * sw + kx - pw;
+
+                            if (iy >= 0 && iy < h && ix >= 0 && ix < w) {
+                                int col_col = ni * out_h * out_w + oy * out_w + ox;
+                                double grad = dcol->data[(size_t)row_idx * dcol->cols + col_col];
+                                dimg->data[(size_t)ni * c * h * w + ci * h * w + iy * w + ix] += grad;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return dimg;
+}
+
+/* ============================================
+ * Backward Pass
+ * ============================================ */
+
+/**
+ * Compute gradients for Conv2D layer.
+ *
+ * @param layer  Conv2D layer (must have col_cache from forward pass)
+ * @param dout   Gradient from upstream, shape (N × K*out_h*out_w)
+ * @return Gradient w.r.t. input (N × C*H*W), caller frees.
+ */
+Matrix* conv2d_backward(Conv2D *layer, const Matrix *dout) {
+    int n = layer->input_n;
+    int c = layer->in_channels;
+    int k = layer->out_channels;
+    int h = layer->input_h;
+    int w = layer->input_w;
+    int kh = layer->kernel_h;
+    int kw = layer->kernel_w;
+    int sh = layer->stride_h;
+    int sw = layer->stride_w;
+    int ph = layer->pad_h;
+    int pw = layer->pad_w;
+
+    int out_h = conv2d_out_size(h, kh, sh, ph);
+    int out_w = conv2d_out_size(w, kw, sw, pw);
+
+    if (!layer->col_cache) return NULL;  /* Forward pass must be called first */
+
+    /* Reshape dout from (N × K*out_h*out_w) to (K × N*out_h*out_w) — match GEMM output */
+    Matrix *dout_reshaped = matrix_alloc((size_t)k, (size_t)n * out_h * out_w);
+    if (!dout_reshaped) return NULL;
+
+    for (int ni = 0; ni < n; ni++) {
+        for (int ki = 0; ki < k; ki++) {
+            for (int oy = 0; oy < out_h; oy++) {
+                for (int ox = 0; ox < out_w; ox++) {
+                    int src_idx = ni * k * out_h * out_w + ki * out_h * out_w + oy * out_w + ox;
+                    int dst_idx = ni * out_h * out_w + oy * out_w + ox;
+                    dout_reshaped->data[ki * n * out_h * out_w + dst_idx] = dout->data[src_idx];
+                }
+            }
+        }
+    }
+
+    /* d_weight = dout_reshaped × col_cache^T */
+    /* col_cache: (C*kh*kw × N*out_h*out_w), col_cache^T: (N*out_h*out_w × C*kh*kw) */
+    Matrix *col_T = matrix_transpose(layer->col_cache);
+    Matrix *d_weight = matrix_matmul(dout_reshaped, col_T);  /* (K × C*kh*kw) */
+    matrix_free(col_T);
+
+    if (layer->d_weight) matrix_free(layer->d_weight);
+    layer->d_weight = d_weight;
+
+    /* d_bias = sum of dout over spatial dimensions */
+    if (layer->d_bias) matrix_free(layer->d_bias);
+    layer->d_bias = matrix_alloc(1, (size_t)k);
+    if (layer->d_bias) {
+        for (int ki = 0; ki < k; ki++) {
+            double sum = 0.0;
+            for (int j = 0; j < n * out_h * out_w; j++) {
+                sum += dout_reshaped->data[ki * n * out_h * out_w + j];
+            }
+            layer->d_bias->data[ki] = sum;
+        }
+    }
+
+    /* d_col = weight^T × dout_reshaped */
+    Matrix *weight_T = matrix_transpose(layer->weight);  /* (C*kh*kw × K) */
+    Matrix *d_col = matrix_matmul(weight_T, dout_reshaped);  /* (C*kh*kw × N*out_h*out_w) */
+    matrix_free(weight_T);
+    matrix_free(dout_reshaped);
+
+    /* col2im: d_col → d_input */
+    Matrix *d_input = col2im(d_col, n, c, h, w, kh, kw, sh, sw, ph, pw);
+    matrix_free(d_col);
+
+    return d_input;
+}
+
+/**
+ * Update weights using accumulated gradients (SGD step).
+ */
+void conv2d_update_weights(Conv2D *layer, double learning_rate) {
+    if (!layer->d_weight || !layer->d_bias) return;
+
+    size_t w_size = layer->weight->rows * layer->weight->cols;
+    for (size_t i = 0; i < w_size; i++) {
+        layer->weight->data[i] -= learning_rate * layer->d_weight->data[i];
+    }
+
+    for (size_t i = 0; i < layer->bias->cols; i++) {
+        layer->bias->data[i] -= learning_rate * layer->d_bias->data[i];
+    }
+}

@@ -72,11 +72,47 @@ TEST(test_pool2d_forward_multichannel) {
     maxpool2d_free(layer);
 }
 
+TEST(test_pool2d_backward) {
+    /* 1x1x4x4, pool 2x2 stride 2
+     * Forward: [6, 8, 14, 16]
+     * Backward: dout = [1, 2, 3, 4]
+     * Positions: 6=idx5, 8=idx7, 14=idx13, 16=idx15
+     * Expected: dimg[idx5]=1, dimg[idx7]=2, dimg[idx13]=3, dimg[idx15]=4
+     */
+    Matrix *input = matrix_alloc(1, 16);
+    for (int i = 0; i < 16; i++) input->data[i] = (double)(i + 1);
+
+    MaxPool2D *layer = maxpool2d_create(2, 2, 2, 2);
+    Matrix *out = maxpool2d_forward(layer, input, 1, 1, 4, 4);
+
+    Matrix *dout = matrix_alloc(1, 4);
+    dout->data[0] = 1.0; dout->data[1] = 2.0;
+    dout->data[2] = 3.0; dout->data[3] = 4.0;
+
+    Matrix *dimg = maxpool2d_backward(layer, dout);
+    ASSERT_NOT_NULL(dimg);
+
+    /* Only argmax positions should have non-zero gradient */
+    ASSERT_NEAR(dimg->data[5], 1.0, 1e-6);   /* max of top-left */
+    ASSERT_NEAR(dimg->data[7], 2.0, 1e-6);   /* max of top-right */
+    ASSERT_NEAR(dimg->data[13], 3.0, 1e-6);  /* max of bottom-left */
+    ASSERT_NEAR(dimg->data[15], 4.0, 1e-6);  /* max of bottom-right */
+    /* All other positions should be 0 */
+    ASSERT_NEAR(dimg->data[0], 0.0, 1e-6);
+
+    matrix_free(input);
+    matrix_free(out);
+    matrix_free(dout);
+    matrix_free(dimg);
+    maxpool2d_free(layer);
+}
+
 int main(void) {
     printf("MaxPool2D Tests\n================\n\n");
     RUN_TEST(test_pool2d_create_free);
     RUN_TEST(test_pool2d_out_size);
     RUN_TEST(test_pool2d_forward_2x2);
     RUN_TEST(test_pool2d_forward_multichannel);
+    RUN_TEST(test_pool2d_backward);
     TEST_SUMMARY();
 }

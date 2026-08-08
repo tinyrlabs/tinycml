@@ -143,6 +143,78 @@ TEST(test_conv2d_forward_bias) {
     conv2d_free(layer);
 }
 
+/* ============================================
+ * Test 7: col2im (reverse of im2col)
+ * ============================================ */
+TEST(test_col2im) {
+    /* 1x1x2x2, kernel 2x2, stride 1, pad 0
+     * Forward: im2col → [[1,2,3,4]]
+     * Backward: col2im with dcol = [[1,2,3,4]] → same as input
+     */
+    Matrix *dcol = matrix_alloc(4, 1);
+    dcol->data[0] = 10.0; dcol->data[1] = 20.0;
+    dcol->data[2] = 30.0; dcol->data[3] = 40.0;
+
+    Matrix *dimg = col2im(dcol, 1, 1, 2, 2, 2, 2, 1, 1, 0, 0);
+    ASSERT_NOT_NULL(dimg);
+    ASSERT_EQ(dimg->rows, (size_t)1);
+    ASSERT_EQ(dimg->cols, (size_t)4);
+    ASSERT_NEAR(dimg->data[0], 10.0, 1e-6);
+    ASSERT_NEAR(dimg->data[1], 20.0, 1e-6);
+    ASSERT_NEAR(dimg->data[2], 30.0, 1e-6);
+    ASSERT_NEAR(dimg->data[3], 40.0, 1e-6);
+
+    matrix_free(dcol);
+    matrix_free(dimg);
+}
+
+/* ============================================
+ * Test 8: Conv2D backward pass (gradient check)
+ * ============================================ */
+TEST(test_conv2d_backward_shape) {
+    /* Create a minimal conv layer and verify backward returns correct shape */
+    double w_data[4] = {1.0, 0.0, 0.0, 1.0};
+    double b_data[1] = {0.0};
+    Conv2D *layer = conv2d_create_with_weights(1, 1, 2, 2, 1, 1, 0, 0, w_data, b_data);
+
+    Matrix *input = matrix_alloc(1, 4);
+    input->data[0] = 1.0; input->data[1] = 2.0;
+    input->data[2] = 3.0; input->data[3] = 4.0;
+
+    /* Forward */
+    Matrix *out = conv2d_forward(layer, input, 1, 2, 2);
+    ASSERT_NOT_NULL(out);
+
+    /* Backward: dout = [1.0] (scalar gradient) */
+    Matrix *dout = matrix_alloc(1, 1);
+    dout->data[0] = 1.0;
+
+    Matrix *dinput = conv2d_backward(layer, dout);
+    ASSERT_NOT_NULL(dinput);
+    ASSERT_EQ(dinput->rows, (size_t)1);
+    ASSERT_EQ(dinput->cols, (size_t)4);
+
+    /* Verify d_weight exists */
+    ASSERT_NOT_NULL(layer->d_weight);
+    ASSERT_EQ(layer->d_weight->rows, (size_t)1);
+    ASSERT_EQ(layer->d_weight->cols, (size_t)4);
+
+    /* Update weights */
+    conv2d_update_weights(layer, 0.01);
+    /* Weight should have changed */
+    int changed = 0;
+    for (size_t i = 0; i < 4; i++) {
+        if (fabs(layer->weight->data[i] - w_data[i]) > 1e-10) changed = 1;
+    }
+    ASSERT_EQ(changed, 1);
+
+    matrix_free(input);
+    matrix_free(out);
+    matrix_free(dout);
+    matrix_free(dinput);
+    conv2d_free(layer);
+}
+
 int main(void) {
     printf("Conv2D Tests\n================\n\n");
     RUN_TEST(test_conv2d_create_free);
@@ -151,5 +223,7 @@ int main(void) {
     RUN_TEST(test_im2col_stride);
     RUN_TEST(test_conv2d_forward_known);
     RUN_TEST(test_conv2d_forward_bias);
+    RUN_TEST(test_col2im);
+    RUN_TEST(test_conv2d_backward_shape);
     TEST_SUMMARY();
 }
