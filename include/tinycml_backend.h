@@ -112,14 +112,14 @@ void tinycml_backend_destroy(tinycml_backend_t *backend);
 
 /**
  * @brief Load a model, parse input/output metadata, allocate scratch ONCE.
- * @param backend    initialized backend
+ * @param backend    created backend
  * @param model_path model file path (K230: kmodel; mock: may be NULL)
- * @param model      caller-provided storage for the model handle
+ * @param model      out: opaque model handle (NULL on failure)
  * @return CML_OK or CML_ERROR_* (CML_ERROR_FILE_IO, CML_ERROR_MEMORY, ...)
  */
 CMLStatus tinycml_model_load(tinycml_backend_t *backend,
                              const char *model_path,
-                             tinycml_model_t *model);
+                             tinycml_model_t **model);
 
 /**
  * @brief Run inference. No allocation, no reload. Thread-safe only if the
