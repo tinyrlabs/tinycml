@@ -96,13 +96,19 @@ typedef struct tinycml_model tinycml_model_t;
 /* ------------------------------------------------------------------ */
 
 /**
- * @brief Initialize a backend instance.
- * @param backend  caller-provided storage (implementation fills it)
- * @param config   backend configuration (copied by the implementation)
+ * @brief Create + initialize a backend handle (implementation allocates).
+ * @param config  backend configuration (copied by the implementation)
+ * @param backend out: opaque handle (NULL on failure)
  * @return CML_OK or CML_ERROR_* (vendor codes translated)
  */
-CMLStatus tinycml_backend_init(tinycml_backend_t *backend,
-                               const tinycml_backend_config_t *config);
+CMLStatus tinycml_backend_create(const tinycml_backend_config_t *config,
+                                 tinycml_backend_t **backend);
+
+/**
+ * @brief Destroy a backend handle and release implementation resources.
+ * Safe to call with NULL.
+ */
+void tinycml_backend_destroy(tinycml_backend_t *backend);
 
 /**
  * @brief Load a model, parse input/output metadata, allocate scratch ONCE.
@@ -155,6 +161,7 @@ void tinycml_model_release(tinycml_model_t *model);
 
 /**
  * @brief Shut a backend down and release implementation resources.
+ * @deprecated Use tinycml_backend_destroy (handle-based) in new code.
  */
 void tinycml_backend_shutdown(tinycml_backend_t *backend);
 
