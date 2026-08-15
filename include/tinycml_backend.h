@@ -34,13 +34,67 @@ extern "C" {
 /* ------------------------------------------------------------------ */
 
 /**
+ * @brief Backend contract API version.
+ * Consumers must set config.api_version to this value; mismatches are
+ * rejected with CML_ERROR_UNSUPPORTED (ABI hardening).
+ */
+#define TINYCML_BACKEND_API_VERSION 2u
+
+/**
+ * @brief Capability flags (bitmask) — reported by query_info, and
+ * accepted (as a required minimum) in the config.
+ */
+#define TINYCML_CAP_DTYPE_U8   (1u << 0u)  /* uint8 tensors             */
+#define TINYCML_CAP_DTYPE_I8   (1u << 1u)  /* int8 tensors              */
+#define TINYCML_CAP_DTYPE_F32  (1u << 2u)  /* float32 tensors           */
+#define TINYCML_CAP_LAYOUT_NCHW (1u << 8u) /* NCHW layout               */
+#define TINYCML_CAP_LAYOUT_NHWC (1u << 9u) /* NHWC layout               */
+
+/**
  * @brief Backend kind — one contract, multiple implementations.
+ * The mock backend MUST NOT impersonate K230: requesting
+ * TINYCML_BACKEND_K230 without a real runtime fails with
+ * CML_ERROR_UNSUPPORTED.
  */
 typedef enum {
     TINYCML_BACKEND_MOCK = 0,  /* reference implementation (host tests) */
     TINYCML_BACKEND_K230,      /* Canaan K230 KPU via nncase kmodel      */
     TINYCML_BACKEND_COUNT
 } tinycml_backend_kind_t;
+
+/**
+ * @brief Explicit backend lifecycle state.
+ *
+ * Valid transitions (all others are rejected with CML_ERROR_STATE):
+ *
+ *   (none) --create--> INITIALIZED --model_load--> MODEL_LOADED
+ *      MODEL_LOADED --first infer--> READY
+ *      READY --infer--> READY
+ *      MODEL_LOADED|READY --model_release--> INITIALIZED (model released)
+ *      INITIALIZED|MODEL_LOADED|READY --destroy--> RELEASED
+ *      RELEASED --(any op)--> CML_ERROR_STATE
+ */
+typedef enum {
+    TINYCML_BACKEND_STATE_NONE = 0,
+    TINYCML_BACKEND_STATE_CREATED,     /* storage allocated            */
+    TINYCML_BACKEND_STATE_INITIALIZED, /* create() completed           */
+    TINYCML_BACKEND_STATE_MODEL_LOADED,/* model loaded, infer not yet  */
+    TINYCML_BACKEND_STATE_READY,       /* infer allowed                */
+    TINYCML_BACKEND_STATE_RELEASED     /* destroyed                    */
+} tinycml_backend_state_t;
+
+/**
+ * @brief Backend information (static capabilities) — query_info().
+ */
+typedef struct {
+    uint32_t api_version;             /* contract version implemented  */
+    uint32_t struct_size;             /* sizeof(this struct)          */
+    char     name[32];                /* e.g. "tinycml-mock"          */
+    char     version[16];             /* implementation version        */
+    uint32_t capabilities;            /* TINYCML_CAP_* bitmask        */
+    uint32_t supported_dtypes;        /* TINYCML_CAP_DTYPE_* mask     */
+    uint32_t supported_layouts;       /* TINYCML_CAP_LAYOUT_* mask    */
+} tinycml_backend_info_t;
 
 /**
  * @brief Tensor data type.
@@ -57,11 +111,13 @@ typedef enum {
  *
  * `data` points to memory owned by the caller (input) or by the model
  * (output scratch, allocated at load time). The contract never allocates.
+ * Shape values are MODEL metadata — the contract itself does NOT fix
+ * any dimensions (no YOLO/class-count assumption).
  */
 typedef struct {
     tinycml_tensor_dtype_t dtype;
     uint32_t ndim;                  /* 1..4 */
-    uint32_t dims[4];               /* e.g. {1, 640, 384, 3} NCHW/NHWC   */
+    uint32_t dims[4];               /* shape from model metadata        */
     uint8_t  layout_nchw;           /* 1 = NCHW, 0 = NHWC                */
     float    scale;                 /* INT8 quantization scale           */
     int8_t   zero_point;            /* INT8 quantization zero point      */
@@ -70,13 +126,22 @@ typedef struct {
 } tinycml_tensor_t;
 
 /**
- * @brief Backend configuration (passed once at init).
+ * @brief Backend configuration (passed once at create).
+ *
+ * Consumers MUST set api_version and struct_size (ABI hardening).
+ * vendor_config is implementation-specific and opaque to the contract
+ * (mock: shape fixture; K230: nncase options).
  */
 typedef struct {
+    uint32_t api_version;           /* must be TINYCML_BACKEND_API_VERSION */
+    uint32_t struct_size;           /* must be sizeof(tinycml_backend_config_t) */
     tinycml_backend_kind_t kind;
     const char *model_path;         /* kmodel file (K230) or NULL (mock) */
     uint32_t max_scratch_bytes;     /* cap for model/scratch memory       */
     uint32_t log_level;             /* 0=off, 1=err, 2=warn, 3=info, 4=dbg */
+    uint32_t required_capabilities; /* minimum TINYCML_CAP_* mask; 0=any  */
+    const void *vendor_config;      /* opaque impl-specific config        */
+    uint32_t vendor_config_size;    /* bytes at vendor_config             */
 } tinycml_backend_config_t;
 
 /**
@@ -96,8 +161,18 @@ typedef struct tinycml_model tinycml_model_t;
 /* ------------------------------------------------------------------ */
 
 /**
+ * @brief Query backend static info (name, version, capabilities).
+ * @param backend created backend
+ * @param info     out: filled info struct
+ * @return CML_OK or CML_ERROR_NULL_PTR / CML_ERROR_STATE
+ */
+CMLStatus tinycml_backend_query_info(const tinycml_backend_t *backend,
+                                     tinycml_backend_info_t *info);
+
+/**
  * @brief Create + initialize a backend handle (implementation allocates).
- * @param config  backend configuration (copied by the implementation)
+ * @param config  backend configuration (copied by the implementation);
+ *                api_version/struct_size MUST be set (ABI check)
  * @param backend out: opaque handle (NULL on failure)
  * @return CML_OK or CML_ERROR_* (vendor codes translated)
  */
