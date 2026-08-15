@@ -26,7 +26,9 @@ typedef enum {
     CML_ERROR_FILE_IO,
     CML_ERROR_PARSE,
     CML_ERROR_CONVERGENCE,
-    CML_ERROR_UNSUPPORTED
+    CML_ERROR_UNSUPPORTED,
+    CML_ERROR_STATE,          /* invalid lifecycle/state transition   */
+    CML_ERROR_VERSION         /* ABI/API version mismatch             */
 } CMLStatus;
 
 /**
